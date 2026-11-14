@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+astropy
+numpy
+astroquery
+python-dotenv
+python-multipart
