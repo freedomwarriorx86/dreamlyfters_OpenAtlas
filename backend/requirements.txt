@@ -2,10 +2,6 @@ fastapi
 uvicorn[standard]
 astropy
 numpy
-astroquery
-python-dotenv
-python-multipart
-pyvo
+scipy
 Pillow
-matplotlib
 requests

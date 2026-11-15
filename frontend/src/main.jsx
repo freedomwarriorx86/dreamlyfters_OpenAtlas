@@ -1,0 +1,44 @@
+import React from "react";
+import ReactDOM from "react-dom/client";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/inter/700.css";
+import "@fontsource/jetbrains-mono/400.css";
+import "@fontsource/jetbrains-mono/500.css";
+import "./styles.css";
+import { AtlasProvider, useAtlas } from "./store";
+import { Footer, Header, Toast, Tour } from "./components/Chrome";
+import ViewerPage from "./pages/ViewerPage";
+import AnalysisPage from "./pages/AnalysisPage";
+import DataPage from "./pages/DataPage";
+import GalleryPage from "./pages/GalleryPage";
+import AboutPage from "./pages/AboutPage";
+
+const PAGES = { "/": ViewerPage, "/analysis": AnalysisPage, "/data": DataPage, "/gallery": GalleryPage, "/about": AboutPage };
+const TITLES = { "/": "Viewer", "/analysis": "Analysis", "/data": "Data", "/gallery": "Gallery", "/about": "About" };
+
+function App() {
+  const { route, s } = useAtlas();
+  const Page = PAGES[route] || ViewerPage;
+  React.useEffect(() => {
+    document.title = `${s.name ? s.name + " · " : ""}${TITLES[route] || "Viewer"} · OpenAtlas`;
+  }, [route, s.name]);
+  return (
+    <div className="oa">
+      <Header />
+      <Page />
+      <Footer />
+      <Toast />
+      <Tour />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <AtlasProvider>
+      <App />
+    </AtlasProvider>
+  </React.StrictMode>,
+);
