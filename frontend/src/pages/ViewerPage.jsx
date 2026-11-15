@@ -6,6 +6,7 @@ import SkyView from "../components/SkyView";
 import Aladin, { nearestSlice } from "../components/Aladin";
 import { DetChips, LightCurve, Spectrum, SpectrumMini } from "../components/Charts";
 import Hint from "../components/Hint";
+import { IconChevronLeft, IconChevronRight, IconClose, IconPin, ObjectGlyph } from "../components/Icons";
 
 const Icon = {
   prev: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z" /></svg>,
@@ -93,7 +94,7 @@ function Controls() {
       <div className="ctl" data-tour="tests">
       {TEST_OBJECTS.map((o) => (
         <button key={o.key} className={`pre ${activeObj?.key === o.key ? "on" : ""}`} onClick={() => openObject(o)}>
-          <span className="ic" style={{ background: o.color + "26", color: o.color }}>{o.icon}</span>
+          <span className="ic" style={{ background: o.color + "26", color: o.color }}><ObjectGlyph kind={o.icon} /></span>
           <div><b>{o.name}</b><span>{o.type}</span></div>
         </button>
       ))}
@@ -135,44 +136,100 @@ function Overlays() {
   );
 }
 
-// Slide-out control panel shown in fullscreen: opens when the cursor reaches the
-// right edge or the tab is clicked; the pin keeps it open.
-function FsPanel({ onExit }) {
-  const { s, set, frames, cur, idx, sel } = useAtlas();
-  const [pinned, setPinned] = useState(() => { try { return localStorage.getItem("oa.fsPinned") === "1"; } catch { return false; } });
+// Slide-out panels shown in fullscreen, one on each side: each opens when the cursor
+// reaches its edge or its tab, and can be pinned open.
+function SlidePanel({ side, id, title, label, storageKey, onExit, children }) {
+  const [pinned, setPinned] = useState(() => { try { return localStorage.getItem(storageKey) === "1"; } catch { return false; } });
   const [hover, setHover] = useState(false);
   const open = pinned || hover;
-  const counts = useMemo(() => frames.reduce((a, f) => ((a[f.detector] = (a[f.detector] || 0) + 1), a), {}), [frames]);
-  const pin = () => {
-    setPinned((p) => { try { localStorage.setItem("oa.fsPinned", p ? "0" : "1"); } catch { /* ignore */ } return !p; });
-  };
-  const fovIdx = FOV_STEPS.reduce((b, v, i) => (Math.abs(v - s.fov) < Math.abs(FOV_STEPS[b] - s.fov) ? i : b), 0);
+  const pin = () => setPinned((p) => { try { localStorage.setItem(storageKey, p ? "0" : "1"); } catch { /* ignore */ } return !p; });
+  const Arrow = (side === "right") === open ? IconChevronRight : IconChevronLeft;
   return (
     <>
-      <div className="fs-hot" onMouseEnter={() => setHover(true)} aria-hidden="true" />
-      <button className={`fs-tab ${open ? "open" : ""}`} onMouseEnter={() => setHover(true)} onClick={() => (pinned ? pin() : setHover(!hover))} aria-expanded={open} aria-controls="fs-panel">
-        {open ? "›" : "‹"} Controls
+      <div className={`fs-hot ${side}`} onMouseEnter={() => setHover(true)} aria-hidden="true" />
+      <button className={`fs-tab ${side} ${open ? "open" : ""}`} onMouseEnter={() => setHover(true)}
+        onClick={pin} title={pinned ? "Unpin this panel" : "Keep this panel open"} aria-expanded={open} aria-controls={id}>
+        <Arrow size={14} /> {label}
       </button>
-      <aside id="fs-panel" className={`fs-panel ${open ? "open" : ""}`} onMouseLeave={() => setHover(false)} aria-label="Fullscreen controls">
+      <aside id={id} className={`fs-panel ${side} ${open ? "open" : ""}`} onMouseLeave={() => setHover(false)} aria-label={title}>
         <div className="fs-head">
-          <b>{s.name || "Custom position"}</b>
+          <b>{title}</b>
           <div style={{ display: "flex", gap: 6 }}>
             <button className={`btn ${pinned ? "on" : ""}`} style={{ width: 36, height: 36 }} onClick={pin} aria-pressed={pinned}
-              title={pinned ? "Unpin: hide when the cursor leaves" : "Pin: keep this panel open"} aria-label="Pin panel">📌</button>
-            <button className="btn" style={{ width: 36, height: 36 }} onClick={onExit} title="Exit fullscreen (Esc)" aria-label="Exit fullscreen">✕</button>
+              title={pinned ? "Unpin: hide when the cursor leaves" : "Pin: keep this panel open"} aria-label="Pin panel"><IconPin size={16} /></button>
+            {onExit && <button className="btn" style={{ width: 36, height: 36 }} onClick={onExit} title="Exit fullscreen (Esc)" aria-label="Exit fullscreen"><IconClose size={16} /></button>}
           </div>
         </div>
-        {cur && <p className="note mono" style={{ fontSize: 11 }}>Frame {idx + 1}/{sel.length} · {fmtUTC(cur.utc)} · D{cur.detector}</p>}
-        <PlayBar compact />
-        <p className="h">Mode</p><ModeSeg />
-        <p className="h">Detector</p><DetChips value={s.det} onChange={(d) => set({ det: d })} counts={counts} />
-        <p className="h">Stretch</p><StretchSeg />
-        <p className="h">Field of view <span>{s.fov}′</span></p>
-        <input className="range" type="range" min="0" max={FOV_STEPS.length - 1} value={fovIdx} aria-label="Field of view" onChange={(e) => set({ fov: FOV_STEPS[+e.target.value] })} />
-        <p className="h">Overlays</p><Overlays />
-        <p className="note" style={{ fontSize: 11 }}>Move the cursor to the right edge to open this panel, 📌 to keep it open, Esc to leave fullscreen.</p>
+        {children}
       </aside>
     </>
+  );
+}
+
+function FsControls({ onExit }) {
+  const { s, set, frames, cur, idx, sel } = useAtlas();
+  const counts = useMemo(() => frames.reduce((a, f) => ((a[f.detector] = (a[f.detector] || 0) + 1), a), {}), [frames]);
+  const fovIdx = FOV_STEPS.reduce((b, v, i) => (Math.abs(v - s.fov) < Math.abs(FOV_STEPS[b] - s.fov) ? i : b), 0);
+  return (
+    <SlidePanel side="right" id="fs-controls" title="Controls" label="Controls" storageKey="oa.fsPinned" onExit={onExit}>
+      {cur && <p className="note mono" style={{ fontSize: 11 }}>Frame {idx + 1}/{sel.length} · {fmtUTC(cur.utc)} · D{cur.detector}</p>}
+      <PlayBar compact />
+      <p className="h">Mode</p><ModeSeg />
+      <p className="h">Detector</p><DetChips value={s.det} onChange={(d) => set({ det: d })} counts={counts} />
+      <p className="h">Frames to blink</p>
+      <div className="seg" role="group" aria-label="Number of frames">
+        {[12, 24, 48].map((n) => <button key={n} className={s.n === n ? "on" : ""} aria-pressed={s.n === n} onClick={() => set({ n })}>{n}</button>)}
+      </div>
+      <p className="h">Stretch</p><StretchSeg />
+      <p className="h">Field of view <span>{s.fov}′</span></p>
+      <input className="range" type="range" min="0" max={FOV_STEPS.length - 1} value={fovIdx} aria-label="Field of view" onChange={(e) => set({ fov: FOV_STEPS[+e.target.value] })} />
+      <p className="h">Overlays</p><Overlays />
+      <p className="note" style={{ fontSize: 11 }}>Move the cursor to an edge to open a panel, the pin keeps it open, Esc leaves fullscreen.</p>
+    </SlidePanel>
+  );
+}
+
+function FsDetails({ cursor }) {
+  const { s, cur, phot, sel, idx, cands, candSel, setCandSel, frames, meta } = useAtlas();
+  const p = cur ? phot[cur.id] : null;
+  const list = cands.status === "ready" ? cands.data.candidates : [];
+  return (
+    <SlidePanel side="left" id="fs-details" title={s.name || "Custom position"} label="Details" storageKey="oa.fsLeftPinned">
+      <p className="h">Target</p>
+      <div>
+        <div className="kv"><span>RA</span><b>{fmtHMS(s.ra, 2)}</b></div>
+        <div className="kv"><span>Dec</span><b>{fmtDMS(s.dec, 1)}</b></div>
+        <div className="kv"><span>Field of view</span><b>{s.fov}′</b></div>
+        <div className="kv"><span>Release</span><b>{s.collection === "spherex_dr1" ? "DR1" : s.collection === "spherex_qr2" ? "QR2" : "QR1"} · {frames.length} exposures</b></div>
+        <div className="kv"><span>Showing</span><b>{s.mode} · {s.det === "all" ? "all detectors" : `D${s.det}`} · {s.stretch}</b></div>
+        {meta.demo && <div className="kv"><span>Data</span><b style={{ color: "#FFD9A8" }}>demo (IRSA unreachable)</b></div>}
+      </div>
+      <p className="h">Frame details</p>
+      <div>
+        <div className="kv"><span>Frame</span><b>{cur ? `${idx + 1} / ${sel.length}` : "—"}</b></div>
+        <div className="kv"><span>Observed</span><b>{cur ? fmtUTC(cur.utc) : "—"}</b></div>
+        <div className="kv"><span>MJD</span><b>{cur ? cur.mjd.toFixed(3) : "—"}</b></div>
+        <div className="kv"><span>Detector</span><b>{cur ? `D${cur.detector}` : "—"}</b></div>
+        <div className="kv"><span>Wavelength</span><b>{p?.wavelength_um ? `${p.wavelength_um.toFixed(3)} µm` : cur ? `${cur.wav_min_um.toFixed(2)}–${cur.wav_max_um.toFixed(2)} µm` : "—"}</b></div>
+        <div className="kv"><span>Target flux</span><b>{p?.flux_ujy != null ? `${p.saturated ? "≈ " : ""}${p.flux_ujy.toFixed(1)} ± ${p.err_ujy.toFixed(1)} µJy` : p ? (p.saturated ? "saturated" : "not measured") : "—"}</b></div>
+        <div className="kv"><span>Quality flags</span><b>{p ? (p.flags?.length ? p.flags.join(", ") : "none") : "—"}</b></div>
+        <div className="kv"><span>Exposure</span><b className="mono" style={{ fontSize: 11 }}>{cur ? cur.obs_id : "—"}</b></div>
+      </div>
+      <p className="h">Cursor</p>
+      <div>
+        <div className="kv"><span>RA</span><b>{cursor ? fmtHMS(cursor.ra, 2) : "—"}</b></div>
+        <div className="kv"><span>Dec</span><b>{cursor ? fmtDMS(cursor.dec, 1) : "—"}</b></div>
+        <div className="kv"><span>Flux</span><b>{cursor?.flux != null && isFinite(cursor.flux) ? `${cursor.flux.toPrecision(3)} ${cursor.unit}` : "—"}</b></div>
+      </div>
+      <p className="h">Candidates <span>{cands.status === "ready" ? `${list.length} found` : cands.status === "loading" ? "searching…" : ""}</span></p>
+      {list.slice(0, 4).map((c, i) => (
+        <button key={i} className={`cand ${i === candSel ? "on" : ""}`} onClick={() => setCandSel(i)}>
+          <div><span className="mono">{c.ra.toFixed(3)}, {c.dec.toFixed(3)}</span><em className={c.status === "known mover" ? "k" : c.status === "variable" ? "v" : ""}>{c.status}</em></div>
+          <div style={{ fontSize: 12, color: "var(--mu)" }}>{c.status === "variable" ? `${c.variability_sigma}σ · flux ×${c.flux_ratio}` : `${c.shift_sigma}σ · ${c.motion_arcsec_yr}″/yr`}</div>
+        </button>
+      ))}
+      {cands.status === "ready" && !list.length && <p className="note">No movers or variables found.</p>}
+    </SlidePanel>
   );
 }
 
@@ -426,7 +483,8 @@ export default function ViewerPage() {
         {tab === "viewer" && <>
           <div className={`stage ${isFs ? "fs" : ""}`} ref={fsRef}>
             <SkyView onCursor={setCursor} />
-            {isFs && <FsPanel onExit={() => document.exitFullscreen()} />}
+            {isFs && <FsDetails cursor={cursor} />}
+            {isFs && <FsControls onExit={() => document.exitFullscreen()} />}
           </div>
           <PlayBar />
           <div data-tour="film" style={{ display: "flex", flexDirection: "column", gap: 14 }}>

@@ -10,7 +10,9 @@
 
 /* layout wrapper added for the skip link */
 .content{flex:1;display:flex;flex-direction:column;outline:none;animation:pageIn var(--dur-slow) var(--ease-out) both}
-@keyframes pageIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* opacity only: a transform here would make .content the containing block of
+   position:fixed overlays (lightbox) and push them off-centre */
+@keyframes pageIn{from{opacity:0}to{opacity:1}}
 ::view-transition-old(root){animation:vtOut 180ms var(--ease) both}
 ::view-transition-new(root){animation:vtIn 320ms var(--ease-out) both}
 @keyframes vtOut{to{opacity:0}}

@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { IconChevronLeft, IconChevronRight, IconClose, IconExpand, IconExternal } from "../components/Icons";
 import Aladin, { BLANK_SLICES, SPHEREX_SLICES } from "../components/Aladin";
 import { useStagger } from "../lib/motion";
 
@@ -8,31 +10,31 @@ const ITEMS = [
   { cat: "First light", date: "1 Apr 2025", title: "First images from SPHEREx",
     text: "Some of the first exposures, captured on 27 March 2025. Every SPHEREx exposure contains six images, one per detector; colours were assigned to the infrared wavelengths.",
     img: N("PIA26280", "medium"), full: N("PIA26280", "orig"), alt: "Six panels of star fields from SPHEREx's first exposure",
-    credit: "NASA/JPL-Caltech", link: "https://images.nasa.gov/details/PIA26280", linkLabel: "PIA26280 ↗" },
+    credit: "NASA/JPL-Caltech", link: "https://images.nasa.gov/details/PIA26280", linkLabel: "PIA26280" },
   { cat: "First light", date: "1 Apr 2025", title: "First light animation",
     text: "The SPHEREx team's animated first-light sequence, cycling through the images taken by the six detectors.",
     img: "https://spherex.caltech.edu/system/avm_images/binaries/33/original/firstlight_movie.gif",
     full: "https://spherex.caltech.edu/system/avm_images/binaries/33/original/firstlight_movie.gif", alt: "Animated sequence of SPHEREx first-light images",
-    credit: "NASA/JPL-Caltech", link: "https://spherex.caltech.edu/image/first-light-gif", linkLabel: "SPHEREx team ↗" },
+    credit: "NASA/JPL-Caltech", link: "https://spherex.caltech.edu/image/first-light-gif", linkLabel: "SPHEREx team" },
   { cat: "First light", date: "1 May 2025", title: "A dust cloud revealed at 3.29 µm",
     text: "Weeks after launch, SPHEREx revealed a cloud of dust inside the Large Magellanic Cloud that only shows up at one specific infrared wavelength.",
     img: N("PIA26352", "medium"), full: N("PIA26352", "orig"), alt: "Two views of a region in the Large Magellanic Cloud at different infrared wavelengths",
-    credit: "NASA/JPL-Caltech", link: "https://images.nasa.gov/details/PIA26352", linkLabel: "PIA26352 ↗" },
+    credit: "NASA/JPL-Caltech", link: "https://images.nasa.gov/details/PIA26352", linkLabel: "PIA26352" },
   { cat: "All-sky map", date: "DR1 · Nov 2026", title: "The all-sky map in 102 colours — live", aladin: true,
     text: "SPHEREx's DR1 all-sky data cube, streamed live from IRSA. Drag to explore or open it fullscreen; the first all-sky map was released in December 2025 (PIA26600).",
-    credit: "NASA/JPL-Caltech/IPAC", link: "https://www.jpl.nasa.gov/images/pia26600-spherexs-first-all-sky-map/", linkLabel: "JPL PIA26600 ↗" },
+    credit: "NASA/JPL-Caltech/IPAC", link: "https://www.jpl.nasa.gov/images/pia26600-spherexs-first-all-sky-map/", linkLabel: "JPL PIA26600" },
   { cat: "All-sky map", date: "2 Jul 2025", title: "Vela Molecular Ridge",
     text: "Part of the mission's first public data release. The yellow patch at right is RCW 36, a cloud of gas and dust glowing in infrared light from nearby stars.",
     img: N("PIA26354", "medium"), full: N("PIA26354", "orig"), alt: "Infrared view of the Vela Molecular Ridge",
-    credit: "NASA/JPL-Caltech", link: "https://images.nasa.gov/details/PIA26354", linkLabel: "PIA26354 ↗" },
+    credit: "NASA/JPL-Caltech", link: "https://images.nasa.gov/details/PIA26354", linkLabel: "PIA26354" },
   { cat: "Mission", date: "Mission", title: "How SPHEREx scans the sky",
     text: "The observatory sweeps across the sky in low Earth orbit, imaging every part of it 102 times through different colour filters to complete an all-sky map every six months.",
     img: N("PIA26351", "orig"), full: N("PIA26351", "orig"), alt: "SPHEREx field of view scanning across the Large Magellanic Cloud",
-    credit: "NASA/JPL-Caltech", link: "https://images.nasa.gov/details/PIA26351", linkLabel: "PIA26351 ↗" },
+    credit: "NASA/JPL-Caltech", link: "https://images.nasa.gov/details/PIA26351", linkLabel: "PIA26351" },
   { cat: "Mission", date: "Mission", title: "SPHEREx in orbit",
     text: "Artist's concept of the spacecraft and its conical photon shields, which protect the telescope from the Sun's and Earth's heat. More images in the team gallery.",
     img: N("PIA26531", "orig"), full: N("PIA26531", "orig"), alt: "Artist's concept of the SPHEREx spacecraft above Earth",
-    credit: "NASA/JPL-Caltech", link: "https://spherex.caltech.edu", linkLabel: "spherex.caltech.edu ↗" },
+    credit: "NASA/JPL-Caltech", link: "https://spherex.caltech.edu", linkLabel: "spherex.caltech.edu" },
 ];
 const CATS = ["All", "First light", "All-sky map", "Mission"];
 
@@ -43,7 +45,7 @@ function Ph({ it, onOpen }) {
     return (
       <div className="ph" data-tour="ga-allsky">
         <Aladin ra={266.4} dec={-28.9} fovDeg={120} survey="spherex" slice={84} label="SPHEREx DR1 all-sky map" />
-        <button className="ph-fs" onClick={onOpen} aria-label="Open the all-sky map fullscreen">⤢ Fullscreen</button>
+        <button className="ph-fs" onClick={onOpen} aria-label="Open the all-sky map fullscreen"><IconExpand size={14} /> Fullscreen</button>
       </div>
     );
   }
@@ -51,7 +53,7 @@ function Ph({ it, onOpen }) {
     <button className={`ph ph-btn ${loaded ? "" : "skel"}`} onClick={onOpen} aria-label={`Enlarge: ${it.title}`}>
       {!err ? <img src={it.img} alt={it.alt} loading="lazy" className={loaded ? "loaded" : ""} onLoad={() => setLoaded(true)} onError={() => { setErr(true); setLoaded(true); }} />
         : <div className="veil"><div><b>Image unavailable</b>Open the original page below</div></div>}
-      <span className="ph-zoom" aria-hidden="true">⤢</span>
+      <span className="ph-zoom" aria-hidden="true"><IconExpand size={16} /></span>
     </button>
   );
 }
@@ -81,7 +83,7 @@ function Lightbox({ items, index, onClose, onMove }) {
     document.body.style.overflow = "hidden";
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
   }, [onClose, onMove]);
-  return (
+  return createPortal(
     <div className="lb" role="dialog" aria-modal="true" aria-label={it.title} onClick={onClose}>
       <div className="lb-inner" onClick={(e) => e.stopPropagation()}>
         <div className="lb-media">
@@ -89,16 +91,17 @@ function Lightbox({ items, index, onClose, onMove }) {
         </div>
         <div className="lb-cap">
           <div><span className="dtl">{it.cat} · {it.date}</span><h3>{it.title}</h3><p>{it.text}</p></div>
-          <div className="cred"><span>Credit: {it.credit}</span><a href={it.link} target="_blank" rel="noreferrer">{it.linkLabel}</a></div>
+          <div className="cred"><span>Credit: {it.credit}</span><a href={it.link} target="_blank" rel="noreferrer" className="ext">{it.linkLabel} <IconExternal size={12} /></a></div>
         </div>
       </div>
-      <button className="lb-btn lb-close" onClick={onClose} aria-label="Close (Esc)">✕</button>
+      <button className="lb-btn lb-close" onClick={onClose} aria-label="Close (Esc)"><IconClose size={20} /></button>
       {items.length > 1 && <>
-        <button className="lb-btn lb-prev" onClick={(e) => { e.stopPropagation(); onMove(-1); }} aria-label="Previous image">‹</button>
-        <button className="lb-btn lb-next" onClick={(e) => { e.stopPropagation(); onMove(1); }} aria-label="Next image">›</button>
+        <button className="lb-btn lb-prev" onClick={(e) => { e.stopPropagation(); onMove(-1); }} aria-label="Previous image"><IconChevronLeft size={24} /></button>
+        <button className="lb-btn lb-next" onClick={(e) => { e.stopPropagation(); onMove(1); }} aria-label="Next image"><IconChevronRight size={24} /></button>
       </>}
       <span className="lb-count mono">{index + 1} / {items.length}</span>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -123,7 +126,7 @@ export default function GalleryPage() {
             <span className="dtl">{it.cat} · {it.date}</span>
             <h3>{it.title}</h3>
             <p>{it.text}</p>
-            <div className="cred"><span>Credit: {it.credit}</span><a href={it.link} target="_blank" rel="noreferrer">{it.linkLabel}</a></div>
+            <div className="cred"><span>Credit: {it.credit}</span><a href={it.link} target="_blank" rel="noreferrer" className="ext">{it.linkLabel} <IconExternal size={12} /></a></div>
           </article>
         ))}
       </section>
