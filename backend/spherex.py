@@ -187,11 +187,18 @@ def _sia_query(ra: float, dec: float, collection: str) -> list[dict]:
     from astropy.io.votable import parse_single_table
 
     params = {"COLLECTION": collection, "POS": f"CIRCLE {ra} {dec} 0.0005", "MAXREC": 5000}
-    try:
-        r = requests.get(SIA_URL, params=params, timeout=(10, 60))
-        r.raise_for_status()
-    except Exception as exc:
-        raise ArchiveError(f"IRSA SIA query failed: {exc}") from exc
+    r = None
+    for attempt in range(3):  # IRSA occasionally resets connections or answers 5xx
+        try:
+            r = requests.get(SIA_URL, params=params, timeout=(10, 60))
+            if r.status_code >= 500:
+                raise ArchiveError(f"IRSA returned {r.status_code}")
+            r.raise_for_status()
+            break
+        except Exception as exc:
+            if attempt == 2:
+                raise ArchiveError(f"IRSA SIA query failed: {exc}") from exc
+            time.sleep(1.5 * (attempt + 1))
     if b"<TR>" not in r.content:
         if b'value="ERROR"' in r.content:
             raise ArchiveError("IRSA SIA returned an error status")
@@ -293,7 +300,7 @@ def query_frames(ra: float, dec: float, collection: str = DEFAULT_COLLECTION) ->
         else:
             result = {"frames": synthetic_frames(ra, dec), "source": "demo", "demo_mode": True,
                       "error": str(exc), "query_seconds": round(time.time() - t0, 2)}
-        expiry = now + 120  # retry IRSA soon
+        expiry = now + 30  # retry IRSA soon
     _register(result["frames"])
     _query_mem[key] = (expiry, result)
     return result
