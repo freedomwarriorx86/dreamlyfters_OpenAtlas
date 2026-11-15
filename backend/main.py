@@ -20,7 +20,7 @@ import urllib.parse
 from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from .spherex import (
+from spherex import (
     COLLECTION_QR2,
     COLLECTION_DR1,
     query_frames,
@@ -28,8 +28,8 @@ from .spherex import (
     extract_spectrum,
     _synthetic_frames,
 )
-from .gaia import get_gaia_stars
-from .wise import get_wise_sources
+from gaia import get_gaia_stars
+from wise import get_wise_sources
 
 logger = logging.getLogger(__name__)
 
