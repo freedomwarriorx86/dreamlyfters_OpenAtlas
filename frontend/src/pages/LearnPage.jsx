@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { GLOSSARY, GROUPS } from "../lib/glossary";
 import { TEST_OBJECTS, useAtlas } from "../store";
 import { useStagger } from "../lib/motion";
+import { ObjectGlyph } from "../components/Icons";
 
 // ---------------------------------------------------------------------------
 // Tiny deterministic "sky" used by the demos
@@ -134,7 +135,7 @@ export default function LearnPage() {
         <div className="try">
           {TEST_OBJECTS.slice(0, 3).map((o) => (
             <button key={o.key} className="pre" onClick={() => { openObject(o); go("/"); }}>
-              <span className="ic" style={{ background: o.color + "26", color: o.color }}>{o.icon}</span>
+              <span className="ic" style={{ background: o.color + "26", color: o.color }}><ObjectGlyph kind={o.icon} /></span>
               <div><b>{o.name}</b><span>{o.look}</span></div>
             </button>
           ))}

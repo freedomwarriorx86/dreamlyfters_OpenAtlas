@@ -38,6 +38,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         p = self.path.split("?", 1)[0]
         if p.startswith("/assets/"):
             self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        elif p.startswith("/media/"):
+            self.send_header("Cache-Control", "public, max-age=604800")
         elif not p.startswith("/api/"):
             self.send_header("Cache-Control", "no-cache")
         super().end_headers()

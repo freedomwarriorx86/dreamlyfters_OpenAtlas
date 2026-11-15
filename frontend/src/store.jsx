@@ -9,15 +9,15 @@ import { withViewTransition } from "./lib/motion";
 // ---------------------------------------------------------------------------
 export const TEST_OBJECTS = [
   { key: "wise0855", name: "WISE 0855", fixed: { ra: 133.79513, dec: -7.24515 }, type: "Fast-moving brown dwarf",
-    look: "Clear motion across frames; faint, so try stacking", icon: "●", color: "#FFB86B", fov: 6 },
+    look: "Clear motion across frames; faint, so try stacking", icon: "browndwarf", color: "#FFB86B", fov: 6 },
   { key: "barnard", name: "Barnard's Star", resolve: "Barnard's Star", fallback: { ra: 269.446269, dec: 4.768204 },
-    type: "Nearby star, high proper motion", look: "Slow steady drift against fixed background stars", icon: "★", color: "#5EEAD4", fov: 6 },
+    type: "Nearby star, high proper motion", look: "Slow steady drift against fixed background stars", icon: "fast", color: "#5EEAD4", fov: 6 },
   { key: "epsindib", name: "Epsilon Indi B", resolve: "eps Ind B", fallback: { ra: 331.0446, dec: -56.7838 },
-    type: "Brown dwarf pair near a star", look: "Faint companions beside a bright host; check flags", icon: "◐", color: "#A78BFA", fov: 8 },
+    type: "Brown dwarf pair near a star", look: "Faint companions beside a bright host; check flags", icon: "pair", color: "#A78BFA", fov: 8 },
   { key: "rwaur", name: "RW Aurigae", resolve: "RW Aur", fallback: { ra: 76.9564, dec: 30.4014 },
-    type: "Variable star", look: "Brightness changes between exposures; open light curve", icon: "✦", color: "#7DD3FC", fov: 6 },
+    type: "Variable star", look: "Brightness changes between exposures; open light curve", icon: "variable", color: "#7DD3FC", fov: 6 },
   { key: "rdra", name: "R Draconis", resolve: "R Dra", fallback: { ra: 248.1675, dec: 66.7533 },
-    type: "Variable star", look: "Brightness changes between exposures; open light curve", icon: "✦", color: "#7DD3FC", fov: 6 },
+    type: "Variable star", look: "Brightness changes between exposures; open light curve", icon: "variable", color: "#7DD3FC", fov: 6 },
 ];
 
 export const ROUTES = [
