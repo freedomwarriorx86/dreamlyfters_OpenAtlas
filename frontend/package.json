@@ -1,18 +1,21 @@
 {
-  "name": "frontend",
+  "name": "openatlas-frontend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "OpenAtlas - SPHEREx Sky Browser",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "keywords": [],
-  "author": "",
+  "author": "dreamlyfters",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "@vitejs/plugin-react": "^6.3.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.3.0",
+    "vite": "^6.3.5"
   }
 }
