@@ -97,3 +97,30 @@ a.tag-pill:hover{color:var(--tx);border-color:var(--ln2);transform:translateY(-1
 .lb-zoom .mono{min-width:48px;text-align:center;font-size:12px;color:var(--mu)}
 .lb-hint{color:var(--mu)}
 @media(max-width:640px){.lb-hint{display:none}}
+
+/* All-sky map (gallery card + lightbox): map controls stay hidden until the
+   pointer is over the map, then fade and slide in smoothly. */
+.ph .aladin-fov,.lb-sky .aladin-fov,.ph .ph-fs{
+  opacity:0;pointer-events:none;
+  transition:opacity .45s cubic-bezier(.22,1,.36,1) .12s,transform .45s cubic-bezier(.22,1,.36,1) .12s}
+.ph .aladin-fov,.lb-sky .aladin-fov{transform:translateY(8px)}
+.ph .ph-fs{transform:translateY(8px) scale(.96);display:inline-flex;align-items:center;gap:6px;
+  backdrop-filter:blur(8px);box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.ph:hover .aladin-fov,.ph:focus-within .aladin-fov,.lb-sky:hover .aladin-fov,.lb-sky:focus-within .aladin-fov,
+.ph:hover .ph-fs,.ph:focus-within .ph-fs{
+  opacity:1;pointer-events:auto;transform:none;transition-delay:0s}
+.ph .ph-fs:hover{border-color:var(--ac);color:var(--ac);transform:translateY(-1px)}
+.ph .aladin-fov .aladin-btn,.lb-sky .aladin-fov .aladin-btn{transition:background-color .25s ease,transform .2s cubic-bezier(.22,1,.36,1)}
+.ph .aladin-fov .aladin-btn:active,.lb-sky .aladin-fov .aladin-btn:active{transform:scale(.92)}
+@media (hover:none) and (pointer:coarse){.ph .aladin-fov,.lb-sky .aladin-fov,.ph .ph-fs{opacity:1;pointer-events:auto;transform:none}}
+@media (prefers-reduced-motion:reduce){.ph .aladin-fov,.lb-sky .aladin-fov,.ph .ph-fs{transition:opacity .01s}}
+/* restyle Aladin's zoom box as a compact glass pill matching our buttons */
+.ph .aladin-fov,.lb-sky .aladin-fov{left:10px;bottom:10px;display:flex;align-items:center;gap:2px;padding:3px;
+  background:rgba(6,9,18,.82);border:1px solid var(--ln2);border-radius:999px;backdrop-filter:blur(8px);box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.ph .aladin-fov .aladin-btn,.lb-sky .aladin-fov .aladin-btn{width:28px;height:28px;min-width:0;padding:0;margin:0;display:grid;place-items:center;
+  background:transparent;border:0;border-radius:50%!important;cursor:pointer}
+.ph .aladin-fov .aladin-btn:hover,.lb-sky .aladin-fov .aladin-btn:hover{background:rgba(94,234,212,.16)}
+.ph .aladin-fov .aladin-btn img,.lb-sky .aladin-fov .aladin-btn img{filter:invert(1);width:14px;height:14px}
+.ph .aladin-fov .aladin-tooltip,.lb-sky .aladin-fov .aladin-tooltip{display:none}
+.ph .aladin-fov>.aladin-tooltip-container,.lb-sky .aladin-fov>.aladin-tooltip-container{padding:0;margin:0;background:none;border:0;box-shadow:none;min-width:0}
+.ph .aladin-fov .aladin-icon,.lb-sky .aladin-fov .aladin-icon{width:auto;height:auto;background:none}
