@@ -138,3 +138,12 @@ a.tag-pill:hover{color:var(--tx);border-color:var(--ln2);transform:translateY(-1
 .lb-sky ~ .lb-cap,.lb-media:has(.lb-sky) + .lb-cap{margin-top:4px}
 @media(max-width:900px){.lb-aladin{height:calc(100vh - 460px)}}
 .lb-sky .lb-slider{width:min(860px,100%);max-width:none;align-self:center}
+
+/* all-sky map slides in without scaling (Aladin sizes its canvas from the on-screen box) */
+.lb-media.lb-slide-next:has(.lb-sky){animation-name:lbSkyNext}
+.lb-media.lb-slide-prev:has(.lb-sky){animation-name:lbSkyPrev}
+@keyframes lbSkyNext{from{opacity:0;transform:translateX(70px)}to{opacity:1;transform:none}}
+@keyframes lbSkyPrev{from{opacity:0;transform:translateX(-70px)}to{opacity:1;transform:none}}
+.lb-sky .aladin-host{overflow:hidden;border-radius:12px}
+/* low-res card image shown while the full image loads */
+.zoom-box img.lb-low{filter:saturate(.9)}

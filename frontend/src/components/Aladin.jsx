@@ -52,7 +52,7 @@ export default function Aladin({ ra, dec, fovDeg, survey = "dss", slice = null, 
         showFullscreenControl: false, showCooGridControl: false, showSimbadPointerControl: false,
         showProjectionControl: false, showFrame: false, showCooLocation: false, showFov: false,
         showContextMenu: false, showStatusBar: false, showSettingsControl: false, showShareControl: false,
-        showCooGrid: false,
+        showCooGrid: false, backgroundColor: "rgb(6, 11, 22)",
       });
       st.current = { A, al, layer: null, cats: {}, gfx: null };
       // Aladin adds decorative <img>s (logo, icons) without alt text: mark them decorative
@@ -130,6 +130,18 @@ export default function Aladin({ ra, dec, fovDeg, survey = "dss", slice = null, 
       else g.add(A.polygon(sh.points, opt));
     }
   }, [ready, shapes]);
+
+  // Aladin measures itself (including any CSS transform) when it starts; if that happens while
+  // an ancestor is mid scale-animation the canvas stays too small. Re-measure once animations end.
+  useEffect(() => {
+    if (!ready) return;
+    const refit = () => { try { st.current.al?.view?.fixLayoutDimensions(); } catch { /* ignore */ } };
+    const onEnd = (e) => { if (host.current && e.target.contains(host.current)) refit(); };
+    document.addEventListener("animationend", onEnd, true);
+    document.addEventListener("transitionend", onEnd, true);
+    const t = setTimeout(refit, 700);
+    return () => { document.removeEventListener("animationend", onEnd, true); document.removeEventListener("transitionend", onEnd, true); clearTimeout(t); };
+  }, [ready]);
 
   return (
     <div className={className} style={{ position: "relative", pointerEvents: interactive ? "auto" : "none" }} aria-label={label} role="img">

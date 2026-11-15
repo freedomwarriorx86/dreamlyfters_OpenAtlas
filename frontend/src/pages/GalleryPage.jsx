@@ -5,7 +5,8 @@ import Aladin, { BLANK_SLICES, SPHEREX_SLICES } from "../components/Aladin";
 import { useStagger } from "../lib/motion";
 
 // Images: NASA Image and Video Library (images-assets.nasa.gov) and the SPHEREx team site.
-const N = (id, size) => `https://images-assets.nasa.gov/image/${id}/${id}~${size}.jpg`;
+// Self-hosted copies (frontend/public/media/gallery) so they load fast and never depend on a cold CDN.
+const N = (id, size) => `/media/gallery/${id}-${size}.jpg`;
 const ITEMS = [
   { cat: "First light", date: "1 Apr 2025", title: "First images from SPHEREx",
     text: "Some of the first exposures, captured on 27 March 2025. Every SPHEREx exposure contains six images, one per detector; colours were assigned to the infrared wavelengths.",
@@ -13,8 +14,8 @@ const ITEMS = [
     credit: "NASA/JPL-Caltech", link: "https://images.nasa.gov/details/PIA26280", linkLabel: "PIA26280" },
   { cat: "First light", date: "1 Apr 2025", title: "First light animation",
     text: "The SPHEREx team's animated first-light sequence, cycling through the images taken by the six detectors.",
-    img: "https://spherex.caltech.edu/system/avm_images/binaries/33/original/firstlight_movie.gif",
-    full: "https://spherex.caltech.edu/system/avm_images/binaries/33/original/firstlight_movie.gif", alt: "Animated sequence of SPHEREx first-light images",
+    img: "/media/gallery/firstlight.gif",
+    full: "/media/gallery/firstlight.gif", alt: "Animated sequence of SPHEREx first-light images",
     credit: "NASA/JPL-Caltech", link: "https://spherex.caltech.edu/image/first-light-gif", linkLabel: "SPHEREx team" },
   { cat: "First light", date: "1 May 2025", title: "A dust cloud revealed at 3.29 µm",
     text: "Weeks after launch, SPHEREx revealed a cloud of dust inside the Large Magellanic Cloud that only shows up at one specific infrared wavelength.",
@@ -81,8 +82,26 @@ function AllSkyModal() {
 // drag pans when zoomed, two-finger pinch on touch screens, +/- buttons and keys.
 const MIN_Z = 1, MAX_Z = 6;
 
-function ZoomImage({ src, alt, zoomRef, onScale }) {
+// Browser-cached preload; the returned Image tells whether it has finished loading.
+const preloaded = new Map();
+function preload(src) {
+  if (!src) return null;
+  if (!preloaded.has(src)) { const im = new Image(); im.decoding = "async"; im.src = src; preloaded.set(src, im); }
+  return preloaded.get(src);
+}
+
+function ZoomImage({ src, placeholder, alt, zoomRef, onScale }) {
   const box = useRef(null);
+  // show the (already loaded) card image straight away, swap to the full image once it is ready
+  const [ready, setReady] = useState(() => !placeholder || placeholder === src || !!preload(src)?.complete);
+  useEffect(() => {
+    if (ready) return;
+    const im = preload(src);
+    const done = () => setReady(true);
+    if (im.complete) { done(); return; }
+    im.addEventListener("load", done); im.addEventListener("error", done);
+    return () => { im.removeEventListener("load", done); im.removeEventListener("error", done); };
+  }, [src, ready]);
   const [z, setZ] = useState({ s: 1, x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const pointers = useRef(new Map());
@@ -159,7 +178,7 @@ function ZoomImage({ src, alt, zoomRef, onScale }) {
     <div ref={box} className={`zoom-box ${z.s > 1 ? "zoomed" : ""} ${dragging ? "dragging" : ""}`}
       onDoubleClick={(e) => zoomAt(z.s > 1 ? 1 : 2.5, e.clientX, e.clientY)}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
-      <img src={src} alt={alt} draggable="false"
+      <img src={ready ? src : placeholder} alt={alt} draggable="false" className={ready ? "" : "lb-low"}
         style={{ transform: `translate(${z.x}px, ${z.y}px) scale(${z.s})`, transition: dragging || pinch.current ? "none" : undefined }} />
     </div>
   );
@@ -183,12 +202,19 @@ function Lightbox({ items, index, dir, onClose, onMove }) {
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
   }, [onClose, onMove]);
   useEffect(() => { setScale(1); }, [index]);
+  // warm up the neighbours so sliding to them is instant
+  useEffect(() => {
+    for (const d of [1, -1, 2]) {
+      const n = items[(index + d + items.length) % items.length];
+      if (n && !n.aladin) { preload(n.img); preload(n.full); }
+    }
+  }, [index, items]);
   return createPortal(
     <div className="lb" role="dialog" aria-modal="true" aria-label={it.title} onClick={onClose}>
       <div className="lb-inner" onClick={(e) => e.stopPropagation()}>
         {/* keyed by index so every change replays the slide animation in the right direction */}
         <div key={index} className={`lb-media lb-slide-${dir > 0 ? "next" : "prev"}`}>
-          {it.aladin ? <AllSkyModal /> : <ZoomImage src={it.full || it.img} alt={it.alt} zoomRef={zoom} onScale={setScale} />}
+          {it.aladin ? <AllSkyModal /> : <ZoomImage src={it.full || it.img} placeholder={it.img} alt={it.alt} zoomRef={zoom} onScale={setScale} />}
         </div>
         <div key={`c${index}`} className="lb-cap lb-cap-anim">
           <div><span className="dtl">{it.cat} · {it.date}</span><h3>{it.title}</h3><p>{it.text}</p></div>
