@@ -1,15 +1,46 @@
-"""Main FastAPI application for the SPHEREx Planet X Viewer."""
+"""
+OpenAtlas — FastAPI backend for the SPHEREx Planet X Viewer.
 
-from fastapi import FastAPI, HTTPException
+Endpoints:
+  GET /api/health                      status + data release info
+  GET /api/resolve?name=               SIMBAD name → RA/Dec
+  GET /api/frames?ra=&dec=&fov=&collection=  list exposures (JSON)
+  GET /api/frame/{obs_id}?...          rendered PNG cutout
+  GET /api/spectrum?ra=&dec=&radius=   spectrum across bands
+  GET /api/gaia?ra=&dec=&fov=          Gaia DR3 overlay
+  GET /api/wise?ra=&dec=&fov=          WISE comparison
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Optional
+import urllib.parse
+
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
-from .spherex import get_spherex_cutout, get_spherex_epochs
-from .gaia import get_gaia_stars
-from .wise import get_wise_cutout
-from pydantic import BaseModel, Field, validator
-from typing import Optional, List
-import numpy as np
 
-app = FastAPI(title="SPHEREx Planet X Viewer", version="1.0.0")
+from .spherex import (
+    COLLECTION_QR2,
+    COLLECTION_DR1,
+    query_frames,
+    render_frame_png,
+    extract_spectrum,
+    _synthetic_frames,
+)
+from .gaia import get_gaia_stars
+from .wise import get_wise_sources
+
+logger = logging.getLogger(__name__)
+
+app = FastAPI(
+    title="OpenAtlas — SPHEREx Planet X Viewer",
+    version="2.0.0",
+    description=(
+        "dreamlyfters team · NASA Space Apps 2026 Niğde · "
+        "Data: NASA/IPAC IRSA SPHEREx (DOI 10.26131/IRSA629 / 10.26131/IRSA652)"
+    ),
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,151 +50,265 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-class CoordinateInput(BaseModel):
-    """Coordinate input model accepting various formats."""
-
-    ra_degrees: Optional[float] = Field(None, description="Right Ascension in decimal degrees")
-    dec_degrees: Optional[float] = Field(None, description="Declination in decimal degrees")
-    ra_hms: Optional[str] = Field(None, description="Right Ascension in HMS format (hh:mm:ss)")
-    dec_dms: Optional[str] = Field(None, description="Declination in DMS format (dd:mm:ss)")
-    fov: float = Field(0.5, ge=0.1, le=2.0, description="Field of view in degrees")
-    band: int = Field(50, ge=1, le=102, description="SPHEREx band number (1-102)")
-    epoch: int = Field(1, ge=1, le=10, description="Epoch number (1-10 approximately)")
-
-    @validator("ra_degrees", pre=True)
-    def convert_ra_if_hms(cls, v, values):
-        """Convert RA from HMS to degrees if needed."""
-        if v is None:
-            return v
-        if isinstance(v, str) and ":" in v:
-            # Parse HMS format: hh:mm:ss
-            parts = v.split(":")
-            if len(parts) == 3:
-                try:
-                    h, m, s = float(parts[0]), float(parts[1]), float(parts[2])
-                    return h * 15.0 + m * 0.25 + s * (0.25 / 60.0)
-                except ValueError:
-                    pass
-        return v
-
-    @validator("dec_degrees", pre=True)
-    def convert_dec_if_dms(cls, v, values):
-        """Convert Dec from DMS to degrees if needed."""
-        if v is None:
-            return v
-        if isinstance(v, str) and ":" in v:
-            # Parse DMS format: dd:mm:ss
-            parts = v.split(":")
-            if len(parts) == 3:
-                try:
-                    d, m, s = float(parts[0]), float(parts[1]), float(parts[2])
-                    # Handle negative values
-                    sign = -1 if d < 0 or (d == 0 and m < 0) else 1
-                    abs_d = abs(d)
-                    return sign * (abs_d + m / 60.0 + s / 3600.0)
-                except ValueError:
-                    pass
-        return v
+# ---------------------------------------------------------------------------
+# /api/health
+# ---------------------------------------------------------------------------
 
 
-class URLState(BaseModel):
-    """URL state model for encoding app state in query parameters."""
+@app.get("/api/health")
+async def health():
+    """Status and data release info."""
+    return {
+        "status": "ok",
+        "version": "2.0.0",
+        "project": "OpenAtlas",
+        "team": "dreamlyfters",
+        "event": "NASA Space Apps 2026 Niğde",
+        "data": {
+            "collections": {
+                COLLECTION_QR2: "SPHEREx Quick Release 2 (Oct 2025+, weekly)",
+                COLLECTION_DR1: "SPHEREx Data Release 1 (Nov 13 2026, uniform reprocessing)",
+            },
+            "archive": "NASA/IPAC IRSA (Caltech/JPL)",
+            "doi_qr1": "10.26131/IRSA629",
+            "doi_qr2": "10.26131/IRSA652",
+            "wavelength_range": "0.75 – 5.0 µm (102 channels)",
+            "pixel_scale_arcsec": 6.2,
+        },
+    }
 
-    ra: Optional[float] = None
-    dec: Optional[float] = None
-    fov: float = 0.5
-    band: int = 50
-    epoch: int = 1
+
+# ---------------------------------------------------------------------------
+# /api/resolve
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/resolve")
+async def resolve_name(name: str = Query(..., description="Object name, e.g. 'Barnard\\'s Star'")):
+    """Resolve an object name to ICRS RA/Dec via SIMBAD/Sesame."""
+    if not name.strip():
+        raise HTTPException(400, "name must not be empty")
+    try:
+        from astropy.coordinates import SkyCoord
+        coord = SkyCoord.from_name(name.strip())
+        return {
+            "name": name.strip(),
+            "ra": round(float(coord.ra.deg), 6),
+            "dec": round(float(coord.dec.deg), 6),
+            "ra_hms": coord.ra.to_string(unit="hour", sep="hms", precision=2),
+            "dec_dms": coord.dec.to_string(sep="dms", precision=1),
+        }
+    except Exception as exc:
+        raise HTTPException(404, f"Could not resolve '{name}': {exc}")
+
+
+# ---------------------------------------------------------------------------
+# /api/frames
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/frames")
+async def frames(
+    ra: float = Query(..., description="Right Ascension (decimal degrees)"),
+    dec: float = Query(..., description="Declination (decimal degrees)"),
+    fov: float = Query(0.5, ge=0.05, le=3.0, description="FOV in degrees"),
+    collection: str = Query(COLLECTION_QR2, description="spherex_qr2 or spherex_dr1"),
+):
+    """
+    List SPHEREx exposures that cover (ra, dec), sorted by time.
+    Each item contains obs_id, mjd, utc, wav_min_um, wav_max_um, detector.
+    """
+    _validate_coords(ra, dec)
+    try:
+        result = query_frames(ra, dec, fov, collection)
+    except Exception as exc:
+        logger.error("query_frames error: %s", exc)
+        raise HTTPException(500, f"Archive query failed: {exc}")
+
+    if not result:
+        return {
+            "frames": [],
+            "ra": ra,
+            "dec": dec,
+            "fov": fov,
+            "collection": collection,
+            "message": (
+                "No SPHEREx coverage found at these coordinates yet. "
+                "SPHEREx science operations began May 2025; some sky regions "
+                "may not yet be in the selected data release."
+            ),
+        }
+
+    # Strip access_url from public response (keep it internal)
+    public = []
+    for f in result:
+        public.append({
+            "id": f["obs_id"],
+            "mjd": f["mjd"],
+            "utc": f["utc"],
+            "wav_min_um": f["wav_min_um"],
+            "wav_max_um": f["wav_max_um"],
+            "detector": f["detector"],
+            "collection": f["collection"],
+            "demo_mode": f.get("demo_mode", False),
+        })
+
+    return {
+        "frames": public,
+        "count": len(public),
+        "ra": ra,
+        "dec": dec,
+        "fov": fov,
+        "collection": collection,
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/frame/{obs_id}
+# ---------------------------------------------------------------------------
+
+# In-process frame lookup cache (populated at discovery time, cleared on restart)
+_frame_cache: dict[str, dict] = {}
+
+
+@app.get("/api/frame/{obs_id}")
+async def get_frame_png(
+    obs_id: str,
+    ra: float = Query(...),
+    dec: float = Query(...),
+    fov: float = Query(0.5, ge=0.05, le=3.0),
+    stretch: str = Query("zscale", regex="^(zscale|percentile)$"),
+    collection: str = Query(COLLECTION_QR2),
+):
+    """Return a PNG-rendered SPHEREx cutout for obs_id."""
+    _validate_coords(ra, dec)
+
+    # Look up or rebuild the frame dict
+    frame = _frame_cache.get(obs_id)
+    if frame is None:
+        # Re-query to find this obs_id
+        all_frames = query_frames(ra, dec, fov, collection)
+        for f in all_frames:
+            _frame_cache[f["obs_id"]] = f
+        frame = _frame_cache.get(obs_id)
+
+    if frame is None:
+        # obs_id might be a DEMO frame – reconstruct it
+        if obs_id.startswith("DEMO_"):
+            demo_frames = _synthetic_frames(ra, dec, fov)
+            for f in demo_frames:
+                _frame_cache[f["obs_id"]] = f
+            frame = _frame_cache.get(obs_id)
+
+    if frame is None:
+        raise HTTPException(404, f"Frame {obs_id!r} not found. Try refreshing the frame list.")
+
+    try:
+        png_bytes = render_frame_png(frame, ra, dec, fov, stretch)
+    except Exception as exc:
+        logger.error("render_frame_png error for %s: %s", obs_id, exc)
+        raise HTTPException(500, f"Render failed: {exc}")
+
+    return Response(content=png_bytes, media_type="image/png", headers={
+        "Cache-Control": "public, max-age=3600",
+        "X-Demo-Mode": str(frame.get("demo_mode", False)),
+        "X-UTC": frame.get("utc", ""),
+        "X-MJD": str(frame.get("mjd", "")),
+        "X-Wavelength": f"{frame.get('wav_min_um', '')}–{frame.get('wav_max_um', '')} µm",
+    })
+
+
+# ---------------------------------------------------------------------------
+# /api/spectrum
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/spectrum")
+async def spectrum(
+    ra: float = Query(...),
+    dec: float = Query(...),
+    radius: float = Query(6.0, ge=1.0, le=60.0, description="Aperture radius in arcsec"),
+    collection: str = Query(COLLECTION_QR2),
+):
+    """Extract SPHEREx spectrum at (ra, dec) across all available bands."""
+    _validate_coords(ra, dec)
+    try:
+        result = extract_spectrum(ra, dec, radius, collection)
+        return result
+    except Exception as exc:
+        logger.error("extract_spectrum error: %s", exc)
+        raise HTTPException(500, f"Spectrum extraction failed: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# /api/gaia
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/gaia")
+async def gaia(
+    ra: float = Query(...),
+    dec: float = Query(...),
+    fov: float = Query(0.5, ge=0.05, le=3.0),
+):
+    """Return Gaia DR3 stars within the field of view."""
+    _validate_coords(ra, dec)
+    try:
+        return await get_gaia_stars(ra, dec, fov)
+    except Exception as exc:
+        logger.error("gaia query error: %s", exc)
+        raise HTTPException(500, f"Gaia query failed: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# /api/wise
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/wise")
+async def wise(
+    ra: float = Query(...),
+    dec: float = Query(...),
+    fov: float = Query(0.5, ge=0.05, le=3.0),
+):
+    """Return WISE/NEOWISE sources within the field of view."""
+    _validate_coords(ra, dec)
+    try:
+        return await get_wise_sources(ra, dec, fov)
+    except Exception as exc:
+        logger.error("wise query error: %s", exc)
+        raise HTTPException(500, f"WISE query failed: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Legacy endpoints (kept for compatibility with existing frontend)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/spherex/epochs")
+async def legacy_epochs(
+    ra: float = Query(133.794),
+    dec: float = Query(-7.245),
+    fov: float = Query(0.5),
+    band: int = Query(50),
+):
+    """Legacy endpoint – use /api/frames instead."""
+    result = await frames(ra=ra, dec=dec, fov=fov, collection=COLLECTION_QR2)
+    return result
 
 
 @app.get("/")
 async def root():
-    return {"message": "SPHEREx Planet X Viewer API", "version": "1.0.0"}
+    return {"message": "OpenAtlas API v2 — visit /docs for Swagger UI"}
 
 
-@app.post("/api/coordinates")
-async def set_coordinates(coord: CoordinateInput):
-    """Validate and process coordinate input."""
-    if coord.ra_degrees is None:
-        raise HTTPException(status_code=400, detail="RA coordinate is required")
-    if coord.dec_degrees is None:
-        raise HTTPException(status_code=400, detail="Dec coordinate is required")
-    return {
-        "ra_degrees": coord.ra_degrees,
-        "dec_degrees": coord.dec_degrees,
-        "fov": coord.fov,
-        "band": coord.band,
-        "epoch": coord.epoch,
-    }
+# ---------------------------------------------------------------------------
+# Validation helpers
+# ---------------------------------------------------------------------------
 
 
-@app.get("/api/state")
-async def get_url_state():
-    """Return current URL state for encoding in query parameters."""
-    return {"ra": None, "dec": None, "fov": 0.5, "band": 50, "epoch": 1}
-
-
-@app.get("/api/spherex/cutout")
-async def spherex_cutout(
-    ra: float = 133.794,
-    dec: float = -7.245,
-    fov: float = 0.5,
-    band: int = 50,
-    epoch: int = 1,
-):
-    """Fetch SPHEREx cutout image from IRSA."""
-    try:
-        result = await get_spherex_cutout(ra, dec, fov, band, epoch)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/spherex/epochs")
-async def spherex_epochs(
-    ra: float = 133.794,
-    dec: float = -7.245,
-    fov: float = 0.5,
-    band: int = 50,
-):
-    """Fetch available SPHEREx epochs for given coordinates."""
-    try:
-        result = await get_spherex_epochs(ra, dec, fov, band)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/gaia/stars")
-async def gaia_stars(
-    ra: float = 133.794,
-    dec: float = -7.245,
-    fov: float = 0.5,
-):
-    """Fetch Gaia DR3 stars within field of view."""
-    try:
-        result = await get_gaia_stars(ra, dec, fov)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/wise/cutout")
-async def wise_cutout(
-    ra: float = 133.794,
-    dec: float = -7.245,
-    fov: float = 0.5,
-):
-    """Fetch WISE/NEOWISE cutout image."""
-    try:
-        result = await get_wise_cutout(ra, dec, fov)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+def _validate_coords(ra: float, dec: float) -> None:
+    if not (0.0 <= ra <= 360.0):
+        raise HTTPException(400, f"RA must be 0–360°, got {ra}")
+    if not (-90.0 <= dec <= 90.0):
+        raise HTTPException(400, f"Dec must be −90–+90°, got {dec}")

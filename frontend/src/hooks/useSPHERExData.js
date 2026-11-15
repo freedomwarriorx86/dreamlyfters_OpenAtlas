@@ -1,121 +1,139 @@
-import {useState, useEffect, useCallback} from 'react'
+import { useState, useCallback, useRef } from "react";
 
-export const useSPHERExData = () => {
-  const [imageData, setImageData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [currentEpoch, setCurrentEpoch] = useState(1)
-  const [availableEpochs, setAvailableEpochs] = useState([])
-  const [bands, setBands] = useState(Array.from({length: 102}, (_, i) => i + 1))
-  const [spectrumData, setSpectrumData] = useState(null)
+const DEFAULT_COLLECTION = "spherex_dr1";
 
-  const fetchEpochImage = useCallback(
-    async (ra, dec, fov, band, epoch) => {
-      setLoading(true)
-      setError(null)
+export function useSPHERExData() {
+  const [frames, setFrames] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [demoMode, setDemoMode] = useState(false);
+  const [message, setMessage] = useState("");
+
+  // Animation state
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [fps, setFps] = useState(4);
+  const intervalRef = useRef(null);
+
+  // Spectrum data
+  const [spectrum, setSpectrum] = useState(null);
+
+  // Overlay data
+  const [gaiaStars, setGaiaStars] = useState(null);
+  const [wiseSources, setWiseSources] = useState(null);
+
+  const stopAnimation = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setPlaying(false);
+  }, []);
+
+  const startAnimation = useCallback(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      setCurrentIndex((i) => (i + 1) % Math.max(frames.length, 1));
+    }, 1000 / fps);
+    setPlaying(true);
+  }, [frames.length, fps]);
+
+  const togglePlay = useCallback(() => {
+    if (playing) {
+      stopAnimation();
+    } else {
+      startAnimation();
+    }
+  }, [playing, startAnimation, stopAnimation]);
+
+  const fetchFrames = useCallback(
+    async ({ ra, dec, fov = 0.5, collection = DEFAULT_COLLECTION, stretch = "zscale" }) => {
+      stopAnimation();
+      setLoading(true);
+      setError(null);
+      setFrames([]);
+      setCurrentIndex(0);
+      setDemoMode(false);
+      setMessage("");
 
       try {
-        // Fetch the cutout image
-        const imageResponse = await fetch(
-          `/api/spherex/cutout?ra=${ra}&dec=${dec}&fov=${fov}&band=${band}&epoch=${epoch}`,
-          {cache: 'no-cache'}
-        )
-
-        if (!imageResponse.ok) {
-          throw new Error(`HTTP ${imageResponse.status}`)
+        const params = new URLSearchParams({ ra, dec, fov, collection });
+        const res = await fetch(`/api/frames?${params}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.detail || `HTTP ${res.status}`);
         }
+        const data = await res.json();
 
-        const imageData = await imageResponse.json()
-
-        // Fetch available epochs
-        const epochsResponse = await fetch(
-          `/api/spherex/epochs?ra=${ra}&dec=${dec}&fov=${fov}&band=${band}`,
-          {cache: 'no-cache'}
-        )
-
-        if (!epochsResponse.ok) {
-          throw new Error(`HTTP ${epochsResponse.status}`)
+        if (data.frames && data.frames.length > 0) {
+          // Build PNG URLs — backend renders images
+          const enriched = data.frames.map((f) => ({
+            ...f,
+            png_url: `/api/frame/${encodeURIComponent(f.obs_id)}?ra=${ra}&dec=${dec}&fov=${fov}&stretch=${stretch}&collection=${collection}`,
+          }));
+          setFrames(enriched);
+          setDemoMode(data.demo_mode ?? false);
+          setMessage(data.message || "");
+          // Auto-start if more than one frame
+          if (enriched.length > 1) {
+            setTimeout(() => startAnimation(), 100);
+          }
+        } else {
+          setMessage(data.message || "No SPHEREx frames found at these coordinates.");
         }
-
-        const epochsData = await epochsResponse.json()
-
-        setImageData(imageData)
-        setAvailableEpochs(epochsData.epochs || [])
-        setCurrentEpoch(epoch)
-        setLoading(false)
       } catch (err) {
-        console.error('Failed to fetch SPHEREx data:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load data')
-        setLoading(false)
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
     },
-    [setImageData, setAvailableEpochs, setCurrentEpoch],
-  )
+    [stopAnimation, startAnimation]
+  );
 
-  const fetchSpectrum = useCallback(
-    async (ra, dec, fov, band) => {
-      setLoading(true)
-      setError(null)
+  const fetchSpectrum = useCallback(async ({ ra, dec, radius = 30, collection = DEFAULT_COLLECTION }) => {
+    try {
+      const params = new URLSearchParams({ ra, dec, radius, collection });
+      const res = await fetch(`/api/spectrum?${params}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setSpectrum(data);
+    } catch {
+      /* non-critical */
+    }
+  }, []);
 
-      try {
-        // In a full implementation, this would extract spectrum data
-        // from the SPHEREx cutout at the clicked position
-        // For now, generate synthetic spectrum data
-        const nBands = 102
-        const wavelengths = Array.from(
-          {length: nBands},
-          (_, i) => getBandWavelength(i + 1),
-        )
-        const fluxes = Array.from({length: nBands}, () =>
-          Math.max(0, Math.random() * 10),
-        )
-        const snrs = Array.from({length: nBands}, () =>
-          Math.floor(Math.random() * 50 + 10),
-        )
-
-        setSpectrumData({
-          bands: wavelengths,
-          fluxes,
-          snrs,
-          objectPosition: {ra, dec},
-        })
-        setLoading(false)
-      } catch (err) {
-        console.error('Failed to fetch spectrum:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load spectrum')
-        setLoading(false)
-      }
-    },
-    [],
-  )
+  const fetchOverlays = useCallback(async ({ ra, dec, fov = 0.5 }) => {
+    const params = new URLSearchParams({ ra, dec, fov });
+    try {
+      const [gaiaRes, wiseRes] = await Promise.allSettled([
+        fetch(`/api/gaia?${params}`).then((r) => r.json()),
+        fetch(`/api/wise?${params}`).then((r) => r.json()),
+      ]);
+      if (gaiaRes.status === "fulfilled") setGaiaStars(gaiaRes.value);
+      if (wiseRes.status === "fulfilled") setWiseSources(wiseRes.value);
+    } catch {
+      /* non-critical */
+    }
+  }, []);
 
   return {
-    imageData,
+    frames,
+    currentIndex,
+    setCurrentIndex,
+    currentFrame: frames[currentIndex] ?? null,
+    playing,
+    togglePlay,
+    fps,
+    setFps,
     loading,
     error,
-    fetchEpochImage,
-    currentEpoch,
-    setCurrentEpoch,
-    availableEpochs,
-    bands,
-    setBand: useCallback((band) => {}, []), // Placeholder - actual state managed in App
-    spectrumData,
-    setSpectrumData,
+    demoMode,
+    message,
+    spectrum,
+    gaiaStars,
+    wiseSources,
+    fetchFrames,
     fetchSpectrum,
-  }
-}
-
-// Helper function for wavelength lookup
-function getBandWavelength(band) {
-  const MIN_WAVELENGTH = 0.75
-  const MAX_WAVELENGTH = 5.0
-  return round(
-    MIN_WAVELENGTH + (MAX_WAVELENGTH - MIN_WAVELENGTH) * (band - 1) / (102 - 1),
-    3,
-  )
-}
-
-function round(value, decimals) {
-  const factor = 10 ** decimals
-  return Math.round(value * factor) / factor
+    fetchOverlays,
+  };
 }

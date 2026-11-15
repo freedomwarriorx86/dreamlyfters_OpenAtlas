@@ -1,153 +1,181 @@
-import React, {useState, useEffect} from 'react'
-import CoordinateInput from './components/CoordinateInput'
-import ImageViewer from './components/ImageViewer'
-import BandSelector from './components/BandSelector'
-import TimeLapseControls from './components/TimeLapseControls'
-import OverlayControls from './components/OverlayControls'
-import SpectrumPlot from './components/SpectrumPlot'
-import TestObjectsPreset from './components/TestObjectsPreset'
-import { useURLState } from './hooks/useURLState'
-import { useSPHERExData } from './hooks/useSPHERExData'
+import React, { useEffect, useCallback } from "react";
+import CoordinateInput from "./components/CoordinateInput";
+import ImageViewer from "./components/ImageViewer";
+import TimeLapseControls from "./components/TimeLapseControls";
+import { useSPHERExData } from "./hooks/useSPHERExData";
+import "./App.css";
 
-function App() {
-  const [urlState, setURLState] = useURLState()
-  const {
-    imageData,
-    loading,
-    error,
-    fetchEpochImage,
-    currentEpoch,
-    setCurrentEpoch,
-    availableEpochs,
-    bands,
-    setBand,
-    spectrumData,
-    setSpectrumData,
-  } = useSPHERExData()
-
-  // URL parameter handling and sync
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const ra = parseFloat(params.get('ra') || '133.794')
-    const dec = parseFloat(params.get('dec') || '-7.245')
-    const fov = parseFloat(params.get('fov') || '0.5')
-    const band = parseInt(params.get('band') || '50', 10)
-    const epoch = parseInt(params.get('epoch') || '1', 10)
-
-    setURLState({ra, dec, fov, band, epoch})
-
-    // Fetch data when coordinates change
-    fetchEpochImage(ra, dec, fov, band, epoch)
-  }, [fetchEpochImage, setURLState])
-
-  // Sync URL state when internal state changes
-  useEffect(() => {
-    const params = new URLSearchParams()
-    params.append('ra', urlState.ra?.toString() || '')
-    params.append('dec', urlState.dec?.toString() || '')
-    params.append('fov', urlState.fov?.toString() || '')
-    params.append('band', urlState.band?.toString() || '')
-    params.append('epoch', urlState.epoch?.toString() || '')
-    const newUrl = `${window.location.pathname}?${params.toString()}`
-    window.history.pushState({path: newUrl}, '', newUrl)
-  }, [urlState])
-
-  if (loading && !imageData) {
-    return (
-      <div style={{minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-        <div>Loading SPHEREx data...</div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div style={{minHeight: '400px', padding: '20px', textAlign: 'center'}}>
-        <h3>Error loading data</h3>
-        <p>{error}</p>
-        <button onClick={() => window.location.reload()}>Retry</button>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{padding: '20px', maxWidth: '1400px', margin: '0 auto'}}>
-      <header style={{marginBottom: '20px', textAlign: 'center'}}>
-        <h1 style={{margin: '0', fontSize: '2rem', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', '-webkit-background-clip: text', '-webkit-text-fill-color: transparent'}}>
-          SPHEREx Planet X Viewer
-        </h1>
-        <p style={{margin: '5px 0 0', color: '#64748b', fontSize: '1rem'}}>
-          Discover moving astronomical objects in SPHEREx infrared data
-        </p>
-      </header>
-
-      <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px'}}>
-        {/* Left panel: Controls */}
-        <div>
-          <CoordinateInput
-            ra={urlState.ra}
-            dec={urlState.dec}
-            fov={urlState.fov}
-            onRAChange={setURLState}
-            onDecChange={setURLState}
-            onFOVChange={setURLState}
-          />
-
-          <BandSelector
-            band={urlState.band}
-            onBandChange={setBand}
-            availableBands={bands}
-          />
-
-          <TestObjectsPreset
-            onPresetSelect={(ra, dec) => {
-              setURLState({ra, dec, fov: urlState.fov, band: urlState.band, epoch: urlState.epoch})
-              fetchEpochImage(ra, dec, urlState.fov, urlState.band, urlState.epoch)
-            }}
-          />
-        </div>
-
-        {/* Right panel: Overlays and controls */}
-        <div>
-          <OverlayControls
-            ra={urlState.ra}
-            dec={urlState.dec}
-            fov={urlState.fov}
-            onToggleGaia={}
-            onToggleWISE={}
-          />
-
-          <TimeLapseControls
-            epochs={availableEpochs}
-            currentEpoch={currentEpoch}
-            onEpochChange={setCurrentEpoch}
-            onStepForward={() => fetchEpochImage(urlState.ra, urlState.dec, urlState.fov, urlState.band, currentEpoch + 1)}
-            onStepBackward={() => fetchEpochImage(urlState.ra, urlState.dec, urlState.fov, urlState.band, currentEpoch - 1)}
-            onSpeedChange={}
-          />
-        </div>
-      </div>
-
-      {/* Image viewer area */}
-      <ImageViewer
-        image={imageData}
-        loading={loading}
-        error={error}
-        fov={urlState.fov}
-        onEpochImageFetch={fetchEpochImage}
-        currentEpoch={currentEpoch}
-        bands={bands}
-        setBand={setBand}
-        spectrumData={spectrumData}
-        setSpectrumData={setSpectrumData}
-      />
-
-      {/* Spectrum plot (bottom) */}
-      {spectrumData && spectrumData.bands.length > 0 && (
-        <SpectrumPlot data={spectrumData} />
-      )}
-    </div>
-  )
+// ── URL state helpers ────────────────────────────────────────────────────────
+function parseUrlState() {
+  const p = new URLSearchParams(window.location.search);
+  return {
+    ra: p.get("ra") ? parseFloat(p.get("ra")) : null,
+    dec: p.get("dec") ? parseFloat(p.get("dec")) : null,
+    fov: p.get("fov") ? parseFloat(p.get("fov")) : 0.5,
+    collection: p.get("collection") || "spherex_dr1",
+  };
 }
 
-export default App
+function pushUrlState({ ra, dec, fov, collection }) {
+  const p = new URLSearchParams({ ra, dec, fov, collection });
+  window.history.pushState({}, "", `?${p}`);
+}
+
+// ── Spectrum chart (simple SVG) ───────────────────────────────────────────────
+function SpectrumChart({ spectrum }) {
+  if (!spectrum?.wavelengths?.length) return null;
+  const { wavelengths, fluxes } = spectrum;
+  const W = 480, H = 120, PAD = 32;
+  const minW = Math.min(...wavelengths), maxW = Math.max(...wavelengths);
+  const minF = Math.min(...fluxes), maxF = Math.max(...fluxes);
+  const sx = (w) => PAD + ((w - minW) / (maxW - minW)) * (W - PAD * 2);
+  const sy = (f) => PAD + (1 - (f - minF) / (maxF - minF + 1e-30)) * (H - PAD * 2);
+  const pts = wavelengths.map((w, i) => `${sx(w)},${sy(fluxes[i])}`).join(" ");
+
+  return (
+    <div className="spectrum-chart">
+      <h3>SPHEREx Spectrum</h3>
+      {spectrum.demo_mode && <span className="badge badge--warn">demo</span>}
+      <svg viewBox={`0 0 ${W} ${H}`} className="spectrum-chart__svg">
+        <polyline points={pts} fill="none" stroke="#f97316" strokeWidth="1.5" />
+        <text x={PAD} y={H - 4} fontSize="10" fill="#888">{minW.toFixed(2)} µm</text>
+        <text x={W - PAD} y={H - 4} fontSize="10" fill="#888" textAnchor="end">{maxW.toFixed(2)} µm</text>
+      </svg>
+      <p className="spectrum-chart__meta">
+        {spectrum.n_points} sample{spectrum.n_points !== 1 ? "s" : ""} · {spectrum.collection}
+      </p>
+    </div>
+  );
+}
+
+// ── Main App ─────────────────────────────────────────────────────────────────
+export default function App() {
+  const {
+    frames,
+    currentIndex,
+    setCurrentIndex,
+    currentFrame,
+    playing,
+    togglePlay,
+    fps,
+    setFps,
+    loading,
+    error,
+    demoMode,
+    message,
+    spectrum,
+    fetchFrames,
+    fetchSpectrum,
+    fetchOverlays,
+  } = useSPHERExData();
+
+  // Run search with given params, also update URL
+  const runSearch = useCallback(
+    async ({ ra, dec, fov = 0.5, collection = "spherex_dr1" }) => {
+      pushUrlState({ ra, dec, fov, collection });
+      await fetchFrames({ ra, dec, fov, collection });
+      fetchSpectrum({ ra, dec, collection });
+      fetchOverlays({ ra, dec, fov });
+    },
+    [fetchFrames, fetchSpectrum, fetchOverlays]
+  );
+
+  // On mount, run search if URL has coords
+  useEffect(() => {
+    const { ra, dec, fov, collection } = parseUrlState();
+    if (ra !== null && dec !== null) {
+      runSearch({ ra, dec, fov, collection });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="app">
+      {/* Header */}
+      <header className="app__header">
+        <div className="app__logo">
+          <span className="app__logo-icon">🌌</span>
+          <span className="app__logo-text">OpenAtlas</span>
+          <span className="app__logo-sub">SPHEREx Sky Browser</span>
+        </div>
+        <div className="app__header-links">
+          <a
+            href="https://www.nasa.gov/mission/spherex/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="header-link"
+          >
+            SPHEREx Mission
+          </a>
+          <a
+            href="https://irsa.ipac.caltech.edu/Missions/spherex.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="header-link"
+          >
+            IRSA Data
+          </a>
+        </div>
+      </header>
+
+      <main className="app__main">
+        {/* Left panel */}
+        <aside className="app__sidebar">
+          <CoordinateInput onSearch={runSearch} loading={loading} />
+
+          {error && (
+            <div className="alert alert--error">
+              <strong>Error:</strong> {error}
+            </div>
+          )}
+
+          {message && !loading && !error && (
+            <div className="alert alert--info">{message}</div>
+          )}
+
+          {frames.length > 0 && (
+            <TimeLapseControls
+              frames={frames}
+              currentIndex={currentIndex}
+              setCurrentIndex={setCurrentIndex}
+              playing={playing}
+              togglePlay={togglePlay}
+              fps={fps}
+              setFps={setFps}
+            />
+          )}
+
+          <SpectrumChart spectrum={spectrum} />
+        </aside>
+
+        {/* Center: image viewer */}
+        <section className="app__viewer">
+          {loading ? (
+            <div className="app__loading">
+              <div className="spinner" />
+              <p>Querying IRSA for SPHEREx frames…</p>
+            </div>
+          ) : (
+            <ImageViewer frame={currentFrame} demoMode={demoMode} />
+          )}
+
+          {frames.length > 0 && (
+            <p className="app__frame-count">
+              {frames.length} frame{frames.length !== 1 ? "s" : ""} found
+              {demoMode && " (demo mode)"}
+            </p>
+          )}
+        </section>
+      </main>
+
+      <footer className="app__footer">
+        <span>
+          Data: NASA/IPAC IRSA · SPHEREx DR1 (DOI: 10.26131/IRSA652) ·{" "}
+          <a href="https://www.spaceappschallenge.org/" target="_blank" rel="noopener noreferrer">
+            NASA Space Apps 2026
+          </a>{" "}
+          · Team dreamlyfters
+        </span>
+      </footer>
+    </div>
+  );
+}

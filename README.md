@@ -1,157 +1,141 @@
-# SPHEREx Planet X Viewer
+# OpenAtlas — SPHEREx Sky Browser
 
-NASA Space Apps 2026 Challenge — "Planet X and SPHEREx"
+**NASA Space Apps Challenge Niğde 2026** · Team **dreamlyfters**  
+Challenge: *Planet X and SPHEREx* (Astrophysics / Planets & Moons / Software — Advanced)
 
-## Overview
+> Enter any sky coordinates and watch SPHEREx infrared images of that patch of sky animate over time. Moving or changing objects — comets, brown dwarfs, nearby stars with proper motion, variable sources — become visible immediately.
 
-A public-facing sky viewer that displays SPHEREx mission images over time, allowing anyone to discover moving astronomical objects (asteroids, comets, brown dwarfs, potential Planet X candidates).
+---
 
-## Project Structure
+## Quick Start
 
-```
-spherex-viewer/
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── CoordinateInput.jsx
-│   │   │   ├── ImageViewer.jsx
-│   │   │   ├── BandSelector.jsx
-│   │   │   ├── TimeLapseControls.jsx
-│   │   │   ├── OverlayControls.jsx
-│   │   │   ├── SpectrumPlot.jsx
-│   │   │   └── TestObjectsPreset.jsx
-│   │   ├── hooks/
-│   │   │   ├── useSPHERExData.js
-│   │   │   └── useURLState.js
-│   │   └── App.jsx
-│   ├── package.json
-│   ├── tailwind.config.cjs
-│   ├── postcss.config.js
-│   └── index.css
-├── backend/
-│   ├── main.py      # FastAPI application
-│   ├── spherex.py   # SPHEREx IRSA queries
-│   ├── gaia.py      # Gaia DR3 queries
-│   ├── wise.py      # WISE/NEOWISE queries
-│   └── requirements.txt
-└── README.md
-```
-
-## Features
-
-### Core Features
-
-1. **Coordinate Input**
-   - Right Ascension (RA) and Declination (Dec) in decimal degrees or sexagesimal format
-   - Object name resolution via SIMBAD/NED (backend integration)
-   - Field of view selector (0.1° to 2°)
-
-2. **SPHEREx Data Fetching**
-   - Query SPHEREx cutout images from NASA/IPAC IRSA
-   - Fetch all available epochs (SPHEREx maps every ~6 months)
-   - 102 near-infrared bands (0.75–5.0 microns)
-
-3. **Time-Lapse Viewer**
-   - Animated flipbook/video sequence of observations
-   - Play / pause / step forward / step backward controls
-   - Adjustable playback speed
-   - Frame counter showing date of each observation
-
-4. **102 Infrared Band Display**
-   - Band selector slider (1–102)
-   - Combine bands: sum all, or sum by detector array (6 arrays)
-   - False-color RGB mapping: assign 3 bands to R, G, B channels
-   - Display wavelength label for selected band
-
-5. **Image Arithmetic**
-   - "Blink comparator" mode: rapidly alternates between two epochs
-   - Difference image: subtract epoch A from epoch B
-   - Sum mode: add multiple epochs to improve signal-to-noise
-
-6. **Overlays: Gaia + WISE Data**
-   - Toggle Gaia DR3 catalog overlay (proper motion arrows on known stars)
-   - Toggle WISE/NEOWISE overlay for comparison
-
-7. **URL-Based Coordinates**
-   - All state encoded in URL parameters: `?ra=133.794&dec=-7.245&fov=0.5&band=50&epoch=2`
-   - Shareable links that open the exact same view
-   - Embeddable in iframes
-
-### Bonus Features
-
-8. **On-the-Fly Spectra**
-   - Click any object in the image to extract its spectrum across all 102 bands
-   - Plot flux vs wavelength using Chart.js
-   - Show known molecular absorption features (H2O, CO2, CO)
-
-9. **Metadata Display**
-   - Contamination flags per pixel
-   - Exposure time per epoch
-   - Signal-to-noise ratio
-
-## Test Objects (Pre-loaded Presets)
-
-- **Barnard's Star** (RA: 269.452, Dec: +4.693) — fast proper motion star
-- **Epsilon Indi B** (RA: 330.840, Dec: -56.786) — brown dwarf pair
-- **WISE 0855** (RA: 133.794, Dec: -7.245) — fastest known brown dwarf
-- **RW Aurigae** (RA: 84.553, Dec: +30.401) — variable star
-- **R Draconis** (RA: 276.047, Dec: +68.039) — variable star
-
-## Running the Application
-
-### Backend (FastAPI)
+### 1. Backend (Python / FastAPI)
 
 ```bash
-cd spherex-viewer/backend
+cd backend
 pip install -r requirements.txt
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --port 8000
 ```
 
-The backend will be available at `http://localhost:8000`
+Backend available at: **http://localhost:8000**
 
-### Frontend (React + Vite)
+### 2. Frontend (React + Vite)
 
 ```bash
-cd spherex-viewer/frontend
+cd frontend
 npm install
 npm run dev
 ```
 
-The frontend will be available at `http://localhost:5173`
+Frontend available at: **http://localhost:3000**  
+(Vite proxies `/api/*` → `http://localhost:8000` automatically)
 
-### Full Stack
+### 3. Open the app
 
-Once both are running, the frontend will connect to the backend at `http://localhost:8000/api/...`
+Navigate to **http://localhost:3000** and try one of the preset targets.
+
+---
+
+## Features
+
+| Feature | Status |
+|---------|--------|
+| RA/Dec coordinate input | ✅ |
+| Object name resolution (SIMBAD) | ✅ |
+| SPHEREx DR1 frame query (IRSA TAP) | ✅ |
+| SPHEREx QR2 frame query | ✅ |
+| FITS → PNG rendering (ZScale + inferno) | ✅ |
+| Play/pause blink animation | ✅ |
+| Adjustable playback speed (1–16 fps) | ✅ |
+| Frame scrubber | ✅ |
+| Wavelength / MJD / UTC metadata | ✅ |
+| SPHEREx spectrum chart (102 channels) | ✅ |
+| Gaia DR3 star overlay data | ✅ |
+| AllWISE source overlay data | ✅ |
+| URL-driven state (?ra=&dec=&fov=&collection=) | ✅ |
+| Demo/synthetic fallback (offline mode) | ✅ |
+| Mobile-responsive layout | ✅ |
+
+---
 
 ## API Endpoints
 
 | Endpoint | Description |
-|---|---|
-| `GET /api/coordinates/{ra}/{dec}/{format_type}` | Parse and validate coordinates |
-| `GET /api/cutout?ra=&dec=&fov=&band=&epoch=` | Fetch SPHEREx cutout image |
-| `GET /api/multi-epoch?ra=&dec=&fov=&bands=` | Fetch multiple epochs for time-lapse |
-| `POST /api/combine-bands` | Combine infrared bands (sum, array_sum) |
-| `POST /api/rgb-mapping` | Apply false-color RGB mapping |
-| `GET /api/gaia-query?ra=&dec=&radius=` | Query Gaia DR3 catalog |
-| `GET /api/wise-query?ra=&dec=&radius=` | Query WISE/NEOWISE catalog |
-| `GET /api/wise-light-curve?ra=&dec=&radius=&bands=` | Query WISE light curve |
-| `GET /api/health` | Health check |
+|----------|-------------|
+| `GET /api/health` | Status + data release info + DOIs |
+| `GET /api/resolve?name=` | SIMBAD name → RA/Dec |
+| `GET /api/frames?ra=&dec=&fov=&collection=` | List SPHEREx frames at position |
+| `GET /api/frame/{obs_id}?ra=&dec=&fov=&stretch=&collection=` | Render single frame as PNG |
+| `GET /api/spectrum?ra=&dec=&radius=&collection=` | Extract SPHEREx spectrum |
+| `GET /api/gaia?ra=&dec=&fov=` | Gaia DR3 stars with proper motion |
+| `GET /api/wise?ra=&dec=&fov=` | AllWISE sources |
 
-## Development Notes
+---
 
-- SPHEREx data is queried from NASA/IPAC Infrared Science Archive (IRSA)
-- Uses astropy for WCS handling and image processing
-- Gaia DR3 queries via astroquery.gaia
-- WISE queries via astroquery.ipac.wise
-- All state is encoded in URL parameters for shareable links
-- Mobile-responsive design using Tailwind CSS
-- CORS enabled for development
+## Test Targets
 
-## Demo
+| Object | RA (°) | Dec (°) | Why interesting |
+|--------|--------|---------|-----------------|
+| Barnard's Star | 269.452 | +4.693 | Highest proper-motion star known; moves visibly between epochs |
+| WISE 0855−0714 | 133.788 | −7.246 | Coldest brown dwarf; IR-bright, fast-moving |
+| Proxima Centauri | 217.429 | −62.681 | Nearest star; large proper motion |
+| M31 (Andromeda) | 10.685 | +41.269 | Extended source test |
+| Galactic Center | 266.405 | −29.0 | Dense stellar field |
 
-The app has been tested with all 5 test objects:
-- Barnard's Star
-- Epsilon Indi B
-- WISE 0855
-- RW Aurigae
-- R Draconis
+---
+
+## Data Sources
+
+| Source | Access | DOI / Reference |
+|--------|--------|-----------------|
+| SPHEREx DR1 | IRSA TAP `spherex.obscore` (collection: `spherex_dr1`) | `10.26131/IRSA652` |
+| SPHEREx QR2 | IRSA TAP `spherex.obscore` (collection: `spherex_qr2`) | `10.26131/IRSA629` |
+| Gaia DR3 | astroquery Gaia TAP | Gaia Collaboration 2022 |
+| AllWISE | IRSA TAP `allwise_p3as_psd` | Cutri et al. 2013 |
+| SIMBAD | astroquery `SkyCoord.from_name` | CDS, Strasbourg |
+
+---
+
+## Project Structure
+
+```
+openatlas/
+├── backend/
+│   ├── main.py          # FastAPI app — all endpoints
+│   ├── spherex.py       # IRSA TAP/SIA2 queries + FITS→PNG rendering
+│   ├── gaia.py          # Gaia DR3 TAP queries
+│   ├── wise.py          # AllWISE IRSA TAP queries
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx                          # Main layout + URL state
+│   │   ├── App.css                          # Dark-sky design system
+│   │   ├── hooks/useSPHERExData.js          # Data fetching + animation state
+│   │   └── components/
+│   │       ├── CoordinateInput.jsx          # Input + name resolution
+│   │       ├── ImageViewer.jsx              # <img> frame display
+│   │       └── TimeLapseControls.jsx        # Play/pause/scrub/speed
+│   ├── vite.config.js                       # Vite + /api proxy
+│   └── package.json
+├── sprint-reports/
+│   ├── sprint-1.md
+│   └── sprint-2.md
+└── README.md
+```
+
+---
+
+## Architecture Notes
+
+**Image rendering pipeline:**  
+`IRSA FITS` → `requests` download → `astropy` FITS I/O → `ZScale` normalize → `matplotlib inferno` colormap → `PIL` → `PNG bytes` → HTTP response with `image/png`
+
+**Demo mode:**  
+When IRSA is unreachable, the backend generates synthetic sky images with realistic star placement and proper-motion offsets between frames. All responses include `demo_mode: true` and the frontend shows a warning banner.
+
+**Caching:**  
+PNG frames are cached to `/tmp/openatlas_cache/` keyed by a content hash of `(ra, dec, fov, obs_id, stretch, collection)`. On subsequent requests the file is served directly without re-fetching from IRSA.
+
+---
+
+*NASA Space Apps Challenge 2026 — dreamlyfters team — Niğde, Turkey*

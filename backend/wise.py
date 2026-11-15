@@ -1,156 +1,115 @@
-"""WISE/NEOWISE data querying for the SPHEREx Planet X Viewer."""
+"""WISE/NEOWISE source overlay queries for OpenAtlas."""
+
+from __future__ import annotations
 
 import logging
-from typing import Dict, Any
+from typing import Any
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
-def _generate_fallback_wise_data(
-    ra: float, dec: float, fov: float
-) -> Dict[str, Any]:
-    """Generate fallback synthetic WISE data."""
-    np.random.seed(int(ra * 100 + dec * 100) % (2**31))
-    size = 256
-    
-    x, y = np.meshgrid(
-        np.linspace(-fov/2, fov/2, size),
-        np.linspace(-fov/2, fov/2, size),
-    )
-    
-    dist_from_center = np.sqrt(x**2 + y**2)
-    image_data = (np.exp(-2 * dist_from_center**2) + 
-                  0.1 * np.random.randn(size, size)).astype(np.float32)
-    
-    wcs_info = {
-        "naxis": 2,
-        "naxis1": size,
-        "naxis2": size,
-        "crval1": ra,
-        "crval2": dec,
-        "cd1_1": fov / size,
-        "cd1_2": 0.0,
-        "cd2_1": 0.0,
-        "cd2_2": fov / size,
-        "cunit1": "deg",
-        "cunit2": "deg",
-    }
-    
-    return {
-        "success": True,
-        "image": image_data.tolist(),
-        "wcs": wcs_info,
-        "bands": ["W1 (3.4µm)", "W2 (4.6µm)"],
-        "survey": "WISE/NEOWISE",
-        "coordinates": {"ra": ra, "dec": dec},
-        "fov": fov,
-    }
-
-
-async def get_wise_cutout(
+async def get_wise_sources(
     ra: float,
     dec: float,
-    fov: float = 0.5,
-) -> Dict[str, Any]:
-    """Fetch WISE/NEOWISE cutout image for comparison.
-    
-    WISE/NEOWISE survey provides infrared imaging in 4 bands:
-    W1 (3.4µm), W2 (4.6µm), W3 (12µm), W4 (22µm).
-    NEOWISE continues W1 and W2.
+    fov_deg: float = 0.5,
+) -> dict[str, Any]:
+    """
+    Return AllWISE / NEOWISE sources within the FOV.
+    Falls back to synthetic data when IRSA TAP is unreachable.
     """
     try:
-        # Try to query WISE/IRSA cutout service
-        import asyncio
-        
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None,
-            _query_wise_irsa_cutout,
-            ra,
-            dec,
-            fov,
-        )
-        
-        if result.get("success"):
-            return result
-        
-    except Exception as e:
-        logger.error(f"WISE IRSA query error: {e}")
-    
-    # Fallback to synthetic data
-    return _generate_fallback_wise_data(ra, dec, fov)
+        return await _query_wise_tap(ra, dec, fov_deg)
+    except Exception as exc:
+        logger.warning("WISE TAP failed: %s – using synthetic overlay", exc)
+        return _synthetic_sources(ra, dec, fov_deg)
 
 
-def _query_wise_irsa_cutout(
-    ra: float,
-    dec: float,
-    fov: float,
-) -> Dict[str, Any]:
-    """Query IRSA for WISE cutout (synchronous)."""
-    try:
-        from astropy.visualization import ZScaleInterval
-        
-        # Generate realistic synthetic WISE data
-        size = 256
-        np.random.seed(int(ra * 100 + dec * 10 + fov * 10) % (2**31))
-        
-        x, y = np.meshgrid(
-            np.linspace(-fov/2, fov/2, size),
-            np.linspace(-fov/2, fov/2, size),
+async def _query_wise_tap(
+    ra: float, dec: float, fov_deg: float
+) -> dict[str, Any]:
+    import asyncio
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _wise_tap_sync, ra, dec, fov_deg)
+
+
+def _wise_tap_sync(ra: float, dec: float, fov_deg: float) -> dict[str, Any]:
+    import pyvo
+
+    service = pyvo.dal.TAPService("https://irsa.ipac.caltech.edu/TAP")
+    radius_deg = fov_deg / 2.0
+
+    adql = f"""
+        SELECT TOP 100
+            designation,
+            ra, dec,
+            w1mpro, w2mpro, w3mpro, w4mpro,
+            cc_flags, ext_flg, var_flg
+        FROM allwise_p3as_psd
+        WHERE 1 = CONTAINS(
+            POINT('ICRS', ra, dec),
+            CIRCLE('ICRS', {ra}, {dec}, {radius_deg})
         )
-        
-        # Simulate typical WISE sources (stars, galaxies)
-        # WISE is sensitive to warm infrared sources
-        noise = np.random.randn(size, size) * 0.1
-        
-        # Extended background
-        background = 0.05 * np.random.randn(size, size)
-        
-        # Some point sources
-        n_sources = 3
-        for _ in range(n_sources):
-            sx = np.random.uniform(-fov/2 + 50, fov/2 - 50)
-            sy = np.random.uniform(-fov/2 + 50, fov/2 - 50)
-            dist = np.sqrt((x - sx)**2 + (y - sy)**2)
-            background += 0.5 * np.exp(-dist**2 / 10) * np.random.uniform(0.5, 1.5)
-        
-        image_data = (background + noise).astype(np.float32)
-        image_data = np.clip(image_data, -2, 2)
-        
-        # WCS information
-        pixel_scale = fov / size
-        
-        wcs_info = {
-            "naxis": 2,
-            "naxis1": size,
-            "naxis2": size,
-            "crval1": ra,
-            "crval2": dec,
-            "cd1_1": pixel_scale,
-            "cd1_2": 0.0,
-            "cd2_1": 0.0,
-            "cd2_2": pixel_scale,
-            "cunit1": "deg",
-            "cunit2": "deg",
-        }
-        
-        # ZScale normalization
-        try:
-            fluxmin, fluxmax = ZScaleInterval().image(image_data)
-        except Exception:
-            fluxmin, fluxmax = image_data.min(), image_data.max()
-        
-        return {
-            "success": True,
-            "image": image_data.tolist(),
-            "wcs": wcs_info,
-            "bands": ["W1 (3.4µm)", "W2 (4.6µm)", "W3 (12µm)", "W4 (22µm)"],
-            "survey": "WISE/NEOWISE",
-            "coordinates": {"ra": ra, "dec": dec},
-            "fov": fov,
-        }
-        
-    except Exception as e:
-        logger.error(f"WISE IRSA cutout query failed: {e}")
-        raise
+        AND w1mpro IS NOT NULL
+        ORDER BY w1mpro
+    """
+
+    result = service.search(adql)
+    table = result.to_table()
+
+    sources = []
+    for row in table:
+        def _mag(col):
+            v = row[col]
+            if hasattr(v, "mask") and v.mask:
+                return None
+            return round(float(v), 3)
+
+        sources.append({
+            "designation": str(row["designation"]),
+            "ra": float(row["ra"]),
+            "dec": float(row["dec"]),
+            "w1": _mag("w1mpro"),
+            "w2": _mag("w2mpro"),
+            "w3": _mag("w3mpro"),
+            "w4": _mag("w4mpro"),
+            "cc_flags": str(row["cc_flags"]).strip(),
+            "ext_flg": int(row["ext_flg"]) if row["ext_flg"] is not None else 0,
+        })
+
+    return {
+        "sources": sources,
+        "count": len(sources),
+        "catalog": "AllWISE",
+        "demo_mode": False,
+    }
+
+
+def _synthetic_sources(ra: float, dec: float, fov_deg: float) -> dict[str, Any]:
+    rng = np.random.default_rng(int(abs(ra * 1000 + dec * 1000)) % (2**31))
+    n = rng.integers(10, 40)
+    half = fov_deg / 2
+    sources = []
+    for i in range(n):
+        w1 = float(rng.uniform(6, 16))
+        w2 = w1 + float(rng.uniform(-0.5, 2.0))
+        w3 = w2 + float(rng.uniform(-0.5, 3.0))
+        w4 = w3 + float(rng.uniform(-0.5, 2.0))
+        sources.append({
+            "designation": f"J{int(ra * 1e4):08d}{'+' if dec >= 0 else ''}{int(dec * 1e4):08d}_{i:04d}",
+            "ra": float(ra + rng.uniform(-half * 0.9, half * 0.9)),
+            "dec": float(dec + rng.uniform(-half * 0.9, half * 0.9)),
+            "w1": round(w1, 3),
+            "w2": round(w2, 3),
+            "w3": round(w3, 3),
+            "w4": round(w4, 3),
+            "cc_flags": "0000",
+            "ext_flg": 0,
+        })
+    return {
+        "sources": sources,
+        "count": len(sources),
+        "catalog": "AllWISE (demo)",
+        "demo_mode": True,
+    }

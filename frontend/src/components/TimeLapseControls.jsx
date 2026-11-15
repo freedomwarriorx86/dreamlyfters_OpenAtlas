@@ -1,96 +1,94 @@
-import React from 'react'
+import React from "react";
 
-export const TimeLapseControls = ({
-  epochs,
-  currentEpoch,
-  onEpochChange,
-  onStepForward,
-  onStepBackward,
-  onSpeedChange,
-}) => {
-  const canStepBack = currentEpoch > 1
-  const canStepForward = currentEpoch < (epochs.length || 1)
+export default function TimeLapseControls({
+  frames,
+  currentIndex,
+  setCurrentIndex,
+  playing,
+  togglePlay,
+  fps,
+  setFps,
+}) {
+  if (!frames || frames.length === 0) return null;
+
+  const frame = frames[currentIndex];
+  const total = frames.length;
 
   return (
-    <div style={{marginBottom: '20px', padding: '15px', background: '#f8f9fa', borderRadius: '8px'}}>
-      <h4 style={{margin: '0 0 12px', color: '#374151'}}>
-        Time-Lapse Viewer
-      </h4>
-      
-      <div style={{display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '15px'}}>
-        <button
-          disabled={!canStepBack}
-          onClick={onStepBackward}
-          style={{
-            padding: '6px 12px',
-            background: 'white',
-            border: '1px solid #cbd5e0',
-            borderRadius: '4px',
-            color: '#374151',
-            fontSize: '0.875rem',
-            cursor: canStepBack ? 'pointer' : 'not-allowed',
-          }}
-        >
-          &\lt;
-        </button>
-
-        <select
-          value={currentEpoch}
-          onChange={(e) => onEpochChange(parseInt(e.target.value, 10))}
-          style={{
-            padding: '6px 12px',
-            border: '1px solid #cbd5e0',
-            borderRadius: '4px',
-            background: 'white',
-            fontSize: '0.875rem',
-          }}
-        >
-          {epochs.map((ep) => (
-            <option key={ep.epoch} value={ep.epoch}>
-              {ep.date}
-            </option>
-          ))}
-        </select>
-
-        <button
-          disabled={!canStepForward}
-          onClick={onStepForward}
-          style={{
-            padding: '6px 12px',
-            background: 'white',
-            border: '1px solid #cbd5e0',
-            borderRadius: '4px',
-            color: '#374151',
-            fontSize: '0.875rem',
-            cursor: canStepForward ? 'pointer' : 'not-allowed',
-          }}
-        >
-          >>
-        </button>
-      </div>
-
-      <div style={{display: 'flex', gap: '15px'}}>
-        <span 
-          style={{fontSize: '0.875rem', color: '#4a5568'}}
-        >
-          Speed:
-        </span>
+    <div className="timelapse-controls">
+      {/* Scrubber */}
+      <div className="timelapse-controls__scrubber">
         <input
           type="range"
-          min="1"
-          max="10"
-          value={1}
-          onChange={(e) => onSpeedChange(parseInt(e.target.value, 10))}
-          style={{
-            width: '150px',
-          }}
+          min={0}
+          max={total - 1}
+          value={currentIndex}
+          onChange={(e) => setCurrentIndex(Number(e.target.value))}
+          className="scrubber"
+          aria-label="Frame scrubber"
         />
-        <span 
-          style={{fontSize: '0.875rem', color: '#4a5568'}}
-        >
-          x
+        <span className="timelapse-controls__counter">
+          {currentIndex + 1} / {total}
         </span>
       </div>
+
+      {/* Controls row */}
+      <div className="timelapse-controls__row">
+        {/* Step back */}
+        <button
+          className="ctrl-btn"
+          onClick={() => setCurrentIndex((i) => (i - 1 + total) % total)}
+          aria-label="Previous frame"
+          disabled={total < 2}
+        >
+          ◀
+        </button>
+
+        {/* Play / Pause */}
+        <button
+          className="ctrl-btn ctrl-btn--primary"
+          onClick={togglePlay}
+          aria-label={playing ? "Pause" : "Play"}
+          disabled={total < 2}
+        >
+          {playing ? "⏸" : "▶"}
+        </button>
+
+        {/* Step forward */}
+        <button
+          className="ctrl-btn"
+          onClick={() => setCurrentIndex((i) => (i + 1) % total)}
+          aria-label="Next frame"
+          disabled={total < 2}
+        >
+          ▶
+        </button>
+
+        {/* Speed */}
+        <div className="timelapse-controls__speed">
+          <label htmlFor="fps-select">Speed</label>
+          <select
+            id="fps-select"
+            value={fps}
+            onChange={(e) => setFps(Number(e.target.value))}
+          >
+            <option value={1}>1 fps</option>
+            <option value={2}>2 fps</option>
+            <option value={4}>4 fps</option>
+            <option value={8}>8 fps</option>
+            <option value={16}>16 fps</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Frame metadata */}
+      {frame && (
+        <div className="timelapse-controls__meta">
+          {frame.utc && <span>📅 {frame.utc?.slice(0, 10)}</span>}
+          {frame.wavelength_um && <span>🔭 {frame.wavelength_um} µm</span>}
+          {frame.detector && <span>Det {frame.detector}</span>}
+        </div>
+      )}
     </div>
-  )
+  );
 }
