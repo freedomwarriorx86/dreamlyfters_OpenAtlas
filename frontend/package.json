@@ -10,7 +10,7 @@
   },
   "keywords": [],
   "author": "dreamlyfters",
-  "license": "ISC",
+  "license": "AGPL-3.0-or-later",
   "dependencies": {
     "@fontsource/inter": "5.3.0",
     "@fontsource/jetbrains-mono": "5.3.0",

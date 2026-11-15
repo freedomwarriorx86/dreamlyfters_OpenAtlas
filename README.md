@@ -138,4 +138,26 @@ PNG frames are cached to `/tmp/openatlas_cache/` keyed by a content hash of `(ra
 
 ---
 
+## License
+
+**“Free as in freedom.”** OpenAtlas is free software, released under the
+**GNU Affero General Public License v3.0 or later** (AGPL-3.0-or-later) — see [LICENSE](LICENSE).
+
+You may use, study, share and modify it. If you distribute it, or run a modified
+version as a public web service, you must offer the people using it the
+corresponding source code under the same license.
+
+Not covered by this license (each keeps its own terms):
+
+| Component | License / terms |
+|---|---|
+| SPHEREx, Gaia, AllWISE data and NASA/JPL images | Provider's terms and credit requirements (NASA/JPL-Caltech, NASA/IPAC IRSA, ESA/Gaia) |
+| Aladin Lite (bundled sky viewer) | GPL-3 |
+| Inter and JetBrains Mono fonts | SIL Open Font License 1.1 |
+| React, Vite, FastAPI, Astropy, NumPy, SciPy, Pillow | MIT / BSD-style |
+
+Copyright © 2026 team dreamlyfters.
+
+---
+
 *NASA Space Apps Challenge 2026 — dreamlyfters team — Niğde, Turkey*
