@@ -11,6 +11,7 @@ import os
 import sys
 import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 # backend/ sits next to this file in the Space (/app/backend); override for local tests
@@ -63,14 +64,18 @@ def main():
             ra, dec = round(ra, 5), round(dec, 5)  # the viewer URL keeps 5 decimals
             frames = sx.query_frames(ra, dec)["frames"]
             pick = spread_pick(frames, N)
-            ok = 0
-            for f in pick:
+            def one(f, ra=ra, dec=dec):
                 try:
                     sx.get_cutout(f, ra, dec)
                     sx.photometry(f, ra, dec)
-                    ok += 1
+                    return True
                 except Exception as exc:
                     print(f"[prewarm] {name}: {f['id']}: {exc}", flush=True)
+                    return False
+
+            # 4 at a time, the same limit the backend uses for NASA downloads
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                ok = sum(pool.map(one, pick))
             print(f"[prewarm] {name}: {ok}/{len(pick)} frames cached in {time.time() - t0:.0f}s", flush=True)
         except Exception as exc:
             print(f"[prewarm] {name}: skipped ({exc})", flush=True)
