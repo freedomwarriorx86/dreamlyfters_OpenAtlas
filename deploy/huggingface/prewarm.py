@@ -62,8 +62,18 @@ def main():
                 except Exception as exc:
                     print(f"[prewarm] {name}: resolve failed ({exc}); using fallback position", flush=True)
             ra, dec = round(ra, 5), round(dec, 5)  # the viewer URL keeps 5 decimals
-            frames = sx.query_frames(ra, dec)["frames"]
-            pick = spread_pick(frames, N)
+            # if NASA's archive is briefly down the backend answers with labelled demo
+            # frames; those cannot be downloaded, so wait and ask again a few times
+            for attempt in range(3):
+                res = sx.query_frames(ra, dec)
+                if not res.get("demo_mode"):
+                    break
+                print(f"[prewarm] {name}: archive unavailable ({res.get('error')}); retrying in 90 s", flush=True)
+                time.sleep(90)
+            if res.get("demo_mode"):
+                print(f"[prewarm] {name}: skipped, archive still unavailable", flush=True)
+                continue
+            pick = spread_pick(res["frames"], N)
             def one(f, ra=ra, dec=dec):
                 try:
                     sx.get_cutout(f, ra, dec)
