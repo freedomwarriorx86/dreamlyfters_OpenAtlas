@@ -63,10 +63,16 @@ function AllSkyModal() {
   return (
     <div className="lb-sky">
       <Aladin ra={266.4} dec={-28.9} fovDeg={180} survey="spherex" slice={slice} label="SPHEREx DR1 all-sky map, fullscreen" className="aladin-host lb-aladin" />
-      <label className="fld lb-slider">SPHEREx channel · <span className="mono" style={{ color: "var(--ac)" }}>{SPHEREX_SLICES[slice].toFixed(3)} µm{BLANK_SLICES.has(slice) ? " (blank dichroic channel)" : ""}</span>
-        <input className="range" type="range" min="0" max={SPHEREX_SLICES.length - 1} value={slice} onChange={(e) => setSlice(+e.target.value)} />
-        <div className="chips">{[[5, "0.85 µm"], [43, "2.04 µm"], [64, "3.38 µm"], [84, "4.37 µm"]].map(([v, l]) => <button key={v} className={`chip ${slice === v ? "on" : ""}`} onClick={() => setSlice(v)}>{l}</button>)}</div>
-      </label>
+      <div className="lb-slider">
+        <div className="lb-slider-head">
+          <label htmlFor="sky-ch">SPHEREx channel <span className="mono">{SPHEREX_SLICES[slice].toFixed(3)} µm</span>
+            {BLANK_SLICES.has(slice) && <small> (blank dichroic channel)</small>}</label>
+          <div className="chips" role="group" aria-label="Jump to a channel">
+            {[[5, "0.85 µm"], [43, "2.04 µm"], [64, "3.38 µm"], [84, "4.37 µm"]].map(([v, l]) => <button key={v} className={`chip ${slice === v ? "on" : ""}`} onClick={() => setSlice(v)}>{l}</button>)}
+          </div>
+        </div>
+        <input id="sky-ch" className="range" type="range" min="0" max={SPHEREX_SLICES.length - 1} value={slice} onChange={(e) => setSlice(+e.target.value)} />
+      </div>
     </div>
   );
 }
