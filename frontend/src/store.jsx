@@ -22,6 +22,7 @@ export const ROUTES = [
   { path: "/", label: "Viewer" },
   { path: "/analysis", label: "Analysis" },
   { path: "/data", label: "Data" },
+  { path: "/learn", label: "Learn" },
   { path: "/gallery", label: "Gallery" },
   { path: "/about", label: "About" },
 ];

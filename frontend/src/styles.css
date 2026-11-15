@@ -62,10 +62,10 @@ button:focus-visible,input:focus-visible,a:focus-visible,select:focus-visible{ou
 .chip small{opacity:.7;margin-left:4px}
 .range{width:100%;accent-color:var(--ac)}
 .sw{display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:10px}
-.sw button{width:40px;height:22px;border-radius:11px;border:1px solid var(--ln);background:var(--ln);position:relative;cursor:pointer;flex:none}
-.sw button:after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--mu);transition:left .15s}
-.sw button[aria-checked=true]{background:var(--ac);border-color:var(--ac)}
-.sw button[aria-checked=true]:after{left:20px;background:#04121A}
+.sw>button{width:40px;height:22px;border-radius:11px;border:1px solid var(--ln);background:var(--ln);position:relative;cursor:pointer;flex:none}
+.sw>button:after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--mu);transition:left .15s}
+.sw>button[aria-checked=true]{background:var(--ac);border-color:var(--ac)}
+.sw>button[aria-checked=true]:after{left:20px;background:#04121A}
 .sw em{font-style:normal;font-size:11px;color:var(--mu);margin-left:6px}
 .pre{display:flex;align-items:center;gap:12px;text-align:left;padding:9px 12px;border:1px solid var(--ln);border-radius:12px;width:100%}
 .pre:hover{border-color:var(--ln2)}

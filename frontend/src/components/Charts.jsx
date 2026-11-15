@@ -62,9 +62,14 @@ export function LightCurve({ points, det = "all", height = 280, onPick, current 
           {arr.map((p) => (
             <g key={p.id} style={{ cursor: onPick ? "pointer" : "default" }} onClick={() => onPick?.(p.id)}>
               <path d={`M${sx(p.mjd)} ${sy(p.rel - p.relErr)}V${sy(p.rel + p.relErr)}`} stroke={DET_COLORS[d]} strokeWidth="1.3" />
-              <circle cx={sx(p.mjd)} cy={sy(p.rel)} r={p.id === current ? 6 : 4} fill="#060912" stroke={p.id === current ? "#fff" : DET_COLORS[d]} strokeWidth="2">
-                <title>{`${fmtUTC(p.utc)} · D${p.detector} · ${p.wavelength_um?.toFixed?.(3) ?? "?"} µm\n${p.flux_ujy.toFixed(1)} ± ${p.err_ujy.toFixed(1)} µJy (S/N ${p.snr ?? "?"})${p.flags?.length ? "\nflags: " + p.flags.join(", ") : ""}`}</title>
-              </circle>
+              {(() => {
+                const tip = `${fmtUTC(p.utc)} · D${p.detector} · ${p.wavelength_um?.toFixed?.(3) ?? "?"} µm\n${p.saturated ? "≈ " : ""}${p.flux_ujy.toFixed(1)} ± ${p.err_ujy.toFixed(1)} µJy (S/N ${p.snr ?? "?"})${p.saturated ? "\nsaturated: estimated from the star's outer glow" : ""}${p.flags?.length ? "\nflags: " + p.flags.join(", ") : ""}`;
+                const r = p.id === current ? 6 : 4.5, x = sx(p.mjd), y = sy(p.rel);
+                const stroke = p.id === current ? "#fff" : DET_COLORS[d];
+                return p.saturated
+                  ? <path d={`M${x} ${y - r - 1}L${x + r + 1} ${y}L${x} ${y + r + 1}L${x - r - 1} ${y}Z`} fill="none" stroke={stroke} strokeWidth="2"><title>{tip}</title></path>
+                  : <circle cx={x} cy={y} r={r} fill="#060912" stroke={stroke} strokeWidth="2"><title>{tip}</title></circle>;
+              })()}
             </g>
           ))}
         </g>
@@ -77,6 +82,12 @@ export function LightCurve({ points, det = "all", height = 280, onPick, current 
       </g>
       <text x="14" y={(T + B) / 2} fill={AX} fontSize="10.5" transform={`rotate(-90 14 ${(T + B) / 2})`} textAnchor="middle">{relative ? "Relative flux (per detector)" : "Flux at target (µJy)"}</text>
       {!relative && <text x={R} y={T + 4} fill="#FFB86B" fontSize="10.5" textAnchor="end">target not clearly detected in single frames</text>}
+      {data.some((p) => p.saturated) && (
+        <g transform={`translate(${L + 8} ${T + 2})`}>
+          <path d="M5 0L10 5L5 10L0 5Z" fill="none" stroke="#FFD9A8" strokeWidth="1.6" />
+          <text x="16" y="9" fill="#FFD9A8" fontSize="10.5">saturated: estimated from the star's outer glow (±15 %)</text>
+        </g>
+      )}
     </svg>
   );
 }
@@ -96,9 +107,13 @@ const FEATURES =[{ um: 3.05, label: "H₂O" }, { um: 4.27, label: "CO₂" }, { u
 
 export function Spectrum({ points, normalized = false, height = 280 }) {
   const W = 700, H = height, L = 64, R = 680, T = 24, B = H - 50;
-  const data = useMemo(() => points.filter((p) => p.flux_ujy != null && isFinite(p.flux_ujy) && p.wavelength_um)
+  // saturated points are wing estimates (not absolute fluxes), so they are left out of the spectrum
+  const nSat = points.filter((p) => p.saturated && p.flux_ujy != null).length;
+  const data = useMemo(() => points.filter((p) => p.flux_ujy != null && isFinite(p.flux_ujy) && p.wavelength_um && !p.saturated)
     .sort((a, b) => a.wavelength_um - b.wavelength_um), [points]);
-  if (!data.length) return null;
+  if (!data.length) {
+    return nSat ? <div className="alert warn">This star is saturated in every exposure measured so far, so SPHEREx cannot give a reliable spectrum for it ({nSat} exposures left out). Its light curve still works. </div> : null;
+  }
   const { inl, out } = splitOutliers(data);
   const peak = Math.max(...inl.map((p) => p.flux_ujy)) || 1;
   const f = (p) => (normalized ? p.flux_ujy / peak : p.flux_ujy);
@@ -143,12 +158,13 @@ export function Spectrum({ points, normalized = false, height = 280 }) {
         <text x={(L + R) / 2} y={H - 8}>Wavelength (µm)</text>
       </g>
       <text x="14" y={(T + B) / 2} fill={AX} fontSize="10.5" transform={`rotate(-90 14 ${(T + B) / 2})`} textAnchor="middle">{normalized ? "Normalized flux" : "Flux (µJy)"}</text>
+      {nSat > 0 && <text x={R} y={H - 8} fill="#FFD9A8" fontSize="10.5" textAnchor="end">{nSat} saturated exposure{nSat > 1 ? "s" : ""} left out</text>}
     </svg>
   );
 }
 
 export function SpectrumMini({ points }) {
-  const data = splitOutliers(points.filter((p) => p.flux_ujy != null && isFinite(p.flux_ujy) && p.wavelength_um)
+  const data = splitOutliers(points.filter((p) => p.flux_ujy != null && isFinite(p.flux_ujy) && p.wavelength_um && !p.saturated)
     .sort((a, b) => a.wavelength_um - b.wavelength_um)).inl;
   if (data.length < 2) return null;
   const W = 290, H = 130, L = 30, R = 290, T = 12, B = 110;

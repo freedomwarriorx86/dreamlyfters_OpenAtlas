@@ -7,16 +7,18 @@ import "@fontsource/inter/700.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "./styles.css";
+import "./styles-learn.css";
 import { AtlasProvider, useAtlas } from "./store";
-import { Footer, Header, Toast, Tour } from "./components/Chrome";
+import { Footer, Header, Intro, Toast, Tour } from "./components/Chrome";
 import ViewerPage from "./pages/ViewerPage";
 import AnalysisPage from "./pages/AnalysisPage";
 import DataPage from "./pages/DataPage";
 import GalleryPage from "./pages/GalleryPage";
 import AboutPage from "./pages/AboutPage";
+import LearnPage from "./pages/LearnPage";
 
-const PAGES = { "/": ViewerPage, "/analysis": AnalysisPage, "/data": DataPage, "/gallery": GalleryPage, "/about": AboutPage };
-const TITLES = { "/": "Viewer", "/analysis": "Analysis", "/data": "Data", "/gallery": "Gallery", "/about": "About" };
+const PAGES = { "/": ViewerPage, "/analysis": AnalysisPage, "/data": DataPage, "/learn": LearnPage, "/gallery": GalleryPage, "/about": AboutPage };
+const TITLES = { "/": "Viewer", "/analysis": "Analysis", "/data": "Data", "/learn": "Learning Hub", "/gallery": "Gallery", "/about": "About" };
 
 function App() {
   const { route, s } = useAtlas();
@@ -31,6 +33,7 @@ function App() {
       <Footer />
       <Toast />
       <Tour />
+      <Intro />
     </div>
   );
 }
