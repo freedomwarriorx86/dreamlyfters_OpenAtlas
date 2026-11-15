@@ -1,7 +1,7 @@
 # Sprint 1 Report — OpenAtlas
 **Date:** November 14, 2026  
 **Scrum Master:** ADK  
-**Challenge:** Planet X and SPHEREx
+**Challenge:** Planet X and SPHEREx!
 
 ---
 
