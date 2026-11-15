@@ -214,7 +214,7 @@ async def get_frame_png(
         "X-Demo-Mode": str(frame.get("demo_mode", False)),
         "X-UTC": frame.get("utc", ""),
         "X-MJD": str(frame.get("mjd", "")),
-        "X-Wavelength": f"{frame.get('wav_min_um', '')}–{frame.get('wav_max_um', '')} µm",
+        "X-Wavelength": f"{frame.get('wav_min_um', '')}-{frame.get('wav_max_um', '')} um",  # HTTP headers must be latin-1
     })
 
 
