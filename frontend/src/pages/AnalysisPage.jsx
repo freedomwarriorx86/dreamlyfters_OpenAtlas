@@ -11,7 +11,7 @@ function Tile({ label, src }) {
   return (
     <div className="tile">{label}
       <div className="im">
-        {src && st === "ok" && <img src={src} alt={label} />}
+        {src && st === "ok" && <img src={src} alt={label} loading="lazy" />}
         {(!src || st !== "ok") && <div className="veil">{!src ? "—" : st === "err" ? "could not render" : <div><div className="spin" style={{ width: 22, height: 22 }} />rendering…</div>}</div>}
       </div>
     </div>
@@ -176,6 +176,7 @@ export default function AnalysisPage() {
   const lcDone = lcPts.length, specDone = specFrames.filter((f) => phot[f.id]).length;
   return (
     <main className="wrap">
+      <h1 className="sr">Analysis{s.name ? ` of ${s.name}` : ""}</h1>
       <div className="col">
         <section className="pn" aria-label="Light curve" data-tour="an-lightcurve">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>

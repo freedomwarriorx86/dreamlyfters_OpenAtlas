@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api, chunk, frameURL, pool } from "./lib/api";
 import { spectrumPick, spreadPick } from "./lib/astro";
+import { flushSync } from "react-dom";
+import { withViewTransition } from "./lib/motion";
 
 // ---------------------------------------------------------------------------
 // Test objects from the challenge brief
@@ -110,7 +112,8 @@ export function AtlasProvider({ children }) {
   // ---- routing --------------------------------------------------------------
   const go = useCallback((path) => {
     window.history.pushState({}, "", path + window.location.search);
-    setRoute(path);
+    // cross-fade between pages where the View Transitions API exists
+    withViewTransition(() => flushSync(() => setRoute(path)));
     window.scrollTo(0, 0);
   }, []);
   useEffect(() => {

@@ -107,6 +107,7 @@ function QualityFlags() {
 export default function DataPage() {
   return (
     <main className="wrap">
+      <h1 className="sr">Data, test objects and quality flags</h1>
       <div className="col">
         <SkyContext />
         <TestObjects />

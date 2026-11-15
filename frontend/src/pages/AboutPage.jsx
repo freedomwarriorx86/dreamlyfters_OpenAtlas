@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useAtlas } from "../store";
 import { Logo } from "../components/Chrome";
+import { CountUp, useStagger } from "../lib/motion";
 
 // Drop the team logo into frontend/public/team-logo.png (or .svg and change the path).
 const TEAM_LOGO = "/team-logo.png";
@@ -13,10 +14,10 @@ function TeamLogo() {
 }
 
 const STATS = [
-  { v: "102", l: "infrared colours", s: "0.75 – 5 µm" },
-  { v: "6", l: "detectors", s: "D1 – D6" },
-  { v: "~250", l: "exposures per spot", s: "2025 – 2026, DR1" },
-  { v: "6.2″", l: "per pixel", s: "about 1/300 of the Moon" },
+  { to: 102, l: "infrared colours", s: "0.75 – 5 µm" },
+  { to: 6, l: "detectors", s: "D1 – D6" },
+  { to: 250, prefix: "~", l: "exposures per spot", s: "2025 – 2026, DR1" },
+  { to: 6.2, decimals: 1, suffix: "″", l: "per pixel", s: "about 1/300 of the Moon" },
 ];
 
 const PIPELINE = [
@@ -46,13 +47,14 @@ const CREDITS = [
 
 export default function AboutPage() {
   const { go } = useAtlas();
+  const ref = useStagger();
   return (
-    <main className="page about">
-      <section className="about-hero" data-tour="ab-team">
+    <main className="page about" ref={ref}>
+      <section className="about-hero" data-tour="ab-team" data-reveal>
         <TeamLogo />
         <div>
           <p className="h">About · team dreamlyfters</p>
-          <h1><Logo /> OpenAtlas</h1>
+          <h1><Logo /> <span className="grad">OpenAtlas</span></h1>
           <p className="lead">See the infrared sky change. Watch every NASA SPHEREx exposure of any spot on the sky, blink them like a flip-book and find what moves.</p>
           <div className="chips">
             <span className="chip on">NASA Space Apps Challenge 2026</span>
@@ -64,14 +66,14 @@ export default function AboutPage() {
       </section>
 
       <section className="stats" aria-label="SPHEREx in numbers">
-        {STATS.map((s) => <div key={s.l} className="stat-tile"><b>{s.v}</b><span>{s.l}</span><small>{s.s}</small></div>)}
+        {STATS.map((s) => <div key={s.l} className="stat-tile" data-reveal><b><CountUp to={s.to} decimals={s.decimals || 0} prefix={s.prefix || ""} suffix={s.suffix || ""} /></b><span>{s.l}</span><small>{s.s}</small></div>)}
       </section>
 
       <section className="pn" aria-label="How it works" data-tour="ab-pipeline">
         <p className="h">How it works</p>
         <ol className="flow">
           {PIPELINE.map((p, i) => (
-            <li key={p.t}><span className="flow-ic" aria-hidden="true">{p.icon}</span><b><span className="mono">{i + 1}</span> {p.t}</b><p>{p.d}</p></li>
+            <li key={p.t} data-reveal><span className="flow-ic" aria-hidden="true">{p.icon}</span><b><span className="mono">{i + 1}</span> {p.t}</b><p>{p.d}</p></li>
           ))}
         </ol>
       </section>
@@ -79,7 +81,7 @@ export default function AboutPage() {
       <section aria-label="Good to know" data-tour="ab-facts">
         <p className="h" style={{ margin: "4px 0 12px" }}>Good to know</p>
         <div className="facts">
-          {FACTS.map((f) => <div key={f.t} className="fact"><span aria-hidden="true">{f.icon}</span><div><b>{f.t}</b><p>{f.d}</p></div></div>)}
+          {FACTS.map((f) => <div key={f.t} className="fact" data-reveal><span aria-hidden="true">{f.icon}</span><div><b>{f.t}</b><p>{f.d}</p></div></div>)}
         </div>
       </section>
 

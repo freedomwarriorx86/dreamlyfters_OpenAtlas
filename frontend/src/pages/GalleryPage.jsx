@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Aladin, { BLANK_SLICES, SPHEREX_SLICES } from "../components/Aladin";
+import { useStagger } from "../lib/motion";
 
 // Images: NASA Image and Video Library (images-assets.nasa.gov) and the SPHEREx team site.
 const N = (id, size) => `https://images-assets.nasa.gov/image/${id}/${id}~${size}.jpg`;
@@ -37,6 +38,7 @@ const CATS = ["All", "First light", "All-sky map", "Mission"];
 
 function Ph({ it, onOpen }) {
   const [err, setErr] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   if (it.aladin) {
     return (
       <div className="ph" data-tour="ga-allsky">
@@ -46,8 +48,8 @@ function Ph({ it, onOpen }) {
     );
   }
   return (
-    <button className="ph ph-btn" onClick={onOpen} aria-label={`Enlarge: ${it.title}`}>
-      {!err ? <img src={it.img} alt={it.alt} loading="lazy" onError={() => setErr(true)} />
+    <button className={`ph ph-btn ${loaded ? "" : "skel"}`} onClick={onOpen} aria-label={`Enlarge: ${it.title}`}>
+      {!err ? <img src={it.img} alt={it.alt} loading="lazy" className={loaded ? "loaded" : ""} onLoad={() => setLoaded(true)} onError={() => { setErr(true); setLoaded(true); }} />
         : <div className="veil"><div><b>Image unavailable</b>Open the original page below</div></div>}
       <span className="ph-zoom" aria-hidden="true">⤢</span>
     </button>
@@ -104,18 +106,19 @@ export default function GalleryPage() {
   const [cat, setCat] = useState("All");
   const [open, setOpen] = useState(null);
   const items = ITEMS.filter((i) => cat === "All" || i.cat === cat);
+  const ref = useStagger([cat]);
   const move = useCallback((d) => setOpen((o) => (o === null ? o : (o + d + items.length) % items.length)), [items.length]);
   const close = useCallback(() => setOpen(null), []);
   return (
     <main className="page">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 14 }}>
-        <div><p className="h">Gallery</p><h1 style={{ margin: "6px 0 0", fontSize: 30, letterSpacing: "-.02em" }}>Real images from NASA's SPHEREx</h1>
+        <div><p className="h">Gallery</p><h1 style={{ margin: "6px 0 0", fontSize: "clamp(26px, 3vw, 36px)", letterSpacing: "-.02em" }}>Real images from <span className="grad">NASA's SPHEREx</span></h1>
           <p className="note" style={{ marginTop: 6, maxWidth: 640 }}>Photos and maps taken by the mission, with credits and links to the original NASA pages. Click any image to see it full size.</p></div>
         <div className="chips" data-tour="ga-filters">{CATS.map((c) => <button key={c} className={`chip ${cat === c ? "on" : ""}`} onClick={() => setCat(c)}>{c}</button>)}</div>
       </div>
-      <section className="gal" aria-label="NASA SPHEREx images">
+      <section className="gal" aria-label="NASA SPHEREx images" ref={ref}>
         {items.map((it, i) => (
-          <article className="card" key={it.title} data-tour={i === 0 ? "ga-card" : undefined}>
+          <article className="card" key={it.title} data-tour={i === 0 ? "ga-card" : undefined} data-reveal>
             <Ph it={it} onOpen={() => setOpen(i)} />
             <span className="dtl">{it.cat} · {it.date}</span>
             <h3>{it.title}</h3>

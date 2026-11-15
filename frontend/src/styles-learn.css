@@ -67,7 +67,7 @@ aside[aria-label=Controls] .hint-pop{left:-10px;right:auto}
 .gloss-card h4{margin:0 0 6px;font-size:15px}
 .gloss-card p{margin:0 0 6px;font-size:13px;color:#cfd8e8;line-height:1.55}
 .gloss-card .lead{color:var(--tx);font-weight:500}
-.gloss-card .ex{color:var(--mu);font-size:12px;border-left:2px solid var(--ln2);padding-left:8px}
+.gloss-card .gl-ex{color:var(--mu);font-size:12px;border-left:2px solid var(--ln2);padding-left:8px}
 
 /* gallery lightbox */
 .ph-btn{padding:0;cursor:zoom-in;width:100%;color:inherit;font:inherit}

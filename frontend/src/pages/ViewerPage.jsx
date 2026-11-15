@@ -45,8 +45,8 @@ function Controls() {
     <aside className="pn" aria-label="Controls" data-tour="controls">
       <p className="h">Target <span>ICRS <Hint id="icrs" /></span></p>
       <form data-tour="target" style={{ display: "flex", flexDirection: "column", gap: 10 }} onSubmit={(e) => { e.preventDefault(); if (raOK && decOK) loadTarget({ name: "", ra, dec }); }}>
-        <div className="fld"><span className="lbl">Right ascension (RA) <Hint id="ra" /></span><input aria-label="Right ascension" value={raT} onChange={(e) => setRaT(e.target.value)} aria-invalid={!raOK} spellCheck="false" /></div>
-        <div className="fld"><span className="lbl">Declination (Dec) <Hint id="dec" /></span><input aria-label="Declination" value={decT} onChange={(e) => setDecT(e.target.value)} aria-invalid={!decOK} spellCheck="false" /></div>
+        <div className="fld"><span className="lbl"><label htmlFor="ra-in">Right ascension (RA)</label> <Hint id="ra" /></span><input id="ra-in" value={raT} onChange={(e) => setRaT(e.target.value)} aria-invalid={!raOK} spellCheck="false" /></div>
+        <div className="fld"><span className="lbl"><label htmlFor="dec-in">Declination (Dec)</label> <Hint id="dec" /></span><input id="dec-in" value={decT} onChange={(e) => setDecT(e.target.value)} aria-invalid={!decOK} spellCheck="false" /></div>
         <div className="seg" role="group" aria-label="Coordinate format">
           <button type="button" className={fmt === "deg" ? "on" : ""} onClick={() => setFmt("deg")}>Degrees</button>
           <button type="button" className={fmt === "hms" ? "on" : ""} onClick={() => setFmt("hms")}>HMS / DMS</button>
@@ -305,7 +305,8 @@ function Details({ cursor }) {
   const { s, cur, phot, cands, candSel, setCandSel, runCandidates, addFlag, flagged, specFrames, sel, notify } = useAtlas();
   const p = cur ? phot[cur.id] : null;
   const list = cands.status === "ready" ? cands.data.candidates : [];
-  const specPts = Object.values(phot).filter((x) => x.flux_ujy != null);
+  const measured = Object.values(phot).filter((x) => x.flux_ujy != null);
+  const specPts = measured.filter((x) => !x.saturated);
   const embed = shareQuery(s);
   const flag = () => {
     const c = list[candSel];
@@ -341,7 +342,9 @@ function Details({ cursor }) {
         <div className="kv"><span>Flux</span><b>{cursor?.flux != null && isFinite(cursor.flux) ? `${cursor.flux.toPrecision(3)} ${cursor.unit}` : "—"}</b></div>
       </div>
       <p className="h">Spectrum <span>flux vs µm</span></p>
-      {specPts.length >= 2 ? <SpectrumMini points={specPts} /> : <p className="note">Open the Spectrum tab to measure {specFrames.length} exposures across all six detectors.</p>}
+      {specPts.length >= 2 ? <SpectrumMini points={specPts} />
+        : measured.length >= 2 ? <p className="note">This star is saturated, so SPHEREx cannot give it a reliable spectrum. <Hint id="saturation" /></p>
+        : <p className="note">Open the Spectrum tab to measure {specFrames.length} exposures across all six detectors.</p>}
       <p className="h" data-tour="candidates"><span className="hl">Candidates <Hint id="mover" /></span><span>{cands.status === "ready" ? `${list.length} found` : ""}</span></p>
       {cands.status === "loading" && <div className="note"><span className="dot busy" style={{ marginRight: 8 }} />Comparing early and late frames…</div>}
       {cands.status === "error" && <div className="alert err">{cands.error}</div>}
@@ -412,7 +415,7 @@ export default function ViewerPage() {
           ))}
         </div>
         <div className="titlebar">
-          <div className="nm">{s.name || "Custom position"}<span className="mono">{fmtHMS(s.ra, 1)} {fmtDMS(s.dec, 1)}</span></div>
+          <h1 className="nm">{s.name || "Custom position"}<span className="mono">{fmtHMS(s.ra, 1)} {fmtDMS(s.dec, 1)}</span></h1>
           <div style={{ display: "flex", gap: 8 }}>
             <a className="ghost" href={sel.length ? gifURL(s, sel.map((f) => f.id), s.speed) : undefined} aria-disabled={!sel.length} download onClick={() => sel.length && notify("Rendering GIF… the download starts when it is ready")}>Export GIF</a>
             <button className="ghost" onClick={fullscreen}>Fullscreen</button>
