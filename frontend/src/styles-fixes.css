@@ -75,3 +75,25 @@ a.tag-pill:hover{color:var(--tx);border-color:var(--ln2);transform:translateY(-1
 @media(max-width:640px){.link-groups{grid-template-columns:1fr}.fs-tab.left.open{left:88vw}.fs-panel.left{width:88vw}}
 
 .ext{display:inline-flex;align-items:center;gap:4px}
+
+/* Gallery lightbox: slide transitions and zoom */
+.lb-slide-next{animation:lbInNext var(--dur-slow) var(--ease-out) both}
+.lb-slide-prev{animation:lbInPrev var(--dur-slow) var(--ease-out) both}
+.lb-cap-anim{animation:lbCap var(--dur-slow) var(--ease-out) .06s both}
+@keyframes lbInNext{from{opacity:0;transform:translateX(70px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes lbInPrev{from{opacity:0;transform:translateX(-70px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes lbCap{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.zoom-box{position:relative;overflow:hidden;border-radius:12px;display:flex;justify-content:center;align-items:center;
+  max-width:100%;max-height:calc(100vh - 260px);cursor:zoom-in;touch-action:none;user-select:none;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.zoom-box.zoomed{cursor:grab}.zoom-box.dragging{cursor:grabbing}
+.zoom-box img{display:block;max-width:100%;max-height:calc(100vh - 260px);border-radius:0;box-shadow:none;transform-origin:center center;
+  transition:transform var(--dur) var(--ease-out);will-change:transform;pointer-events:none}
+.lb-zoom{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:4px;padding:4px;
+  background:rgba(15,26,48,.88);border:1px solid var(--ln2);border-radius:999px;backdrop-filter:blur(8px)}
+.lb-zoom button{width:36px;height:36px;border-radius:50%;border:0;background:none;color:var(--tx);display:grid;place-items:center;cursor:pointer;
+  transition:background-color var(--dur) var(--ease)}
+.lb-zoom button:hover:not(:disabled){background:rgba(94,234,212,.14)}
+.lb-zoom button:disabled{opacity:.35}
+.lb-zoom .mono{min-width:48px;text-align:center;font-size:12px;color:var(--mu)}
+.lb-hint{color:var(--mu)}
+@media(max-width:640px){.lb-hint{display:none}}

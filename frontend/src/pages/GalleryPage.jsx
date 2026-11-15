@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { IconChevronLeft, IconChevronRight, IconClose, IconExpand, IconExternal } from "../components/Icons";
+import { IconChevronLeft, IconChevronRight, IconClose, IconExpand, IconExternal, IconReset, IconZoomIn, IconZoomOut } from "../components/Icons";
 import Aladin, { BLANK_SLICES, SPHEREX_SLICES } from "../components/Aladin";
 import { useStagger } from "../lib/motion";
 
@@ -71,35 +71,138 @@ function AllSkyModal() {
   );
 }
 
-function Lightbox({ items, index, onClose, onMove }) {
+// Zoomable image: wheel zooms towards the cursor, double-click toggles 2.5x,
+// drag pans when zoomed, two-finger pinch on touch screens, +/- buttons and keys.
+const MIN_Z = 1, MAX_Z = 6;
+
+function ZoomImage({ src, alt, zoomRef, onScale }) {
+  const box = useRef(null);
+  const [z, setZ] = useState({ s: 1, x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const pointers = useRef(new Map());
+  const pinch = useRef(null);
+  const drag = useRef(null);
+
+  // keep the image inside the frame: at scale s it may move at most (s-1)/2 of its size
+  const clampXY = useCallback((s, x, y) => {
+    const r = box.current?.getBoundingClientRect();
+    if (!r) return { s, x, y };
+    const mx = ((s - 1) * r.width) / 2, my = ((s - 1) * r.height) / 2;
+    return { s, x: Math.max(-mx, Math.min(mx, x)), y: Math.max(-my, Math.min(my, y)) };
+  }, []);
+
+  // zoom to scale `s` keeping the screen point (cx, cy) fixed
+  const zoomAt = useCallback((s, cx, cy) => {
+    setZ((o) => {
+      const ns = Math.max(MIN_Z, Math.min(MAX_Z, s));
+      const r = box.current.getBoundingClientRect();
+      const px = cx - (r.left + r.width / 2), py = cy - (r.top + r.height / 2);
+      const k = ns / o.s;
+      return ns === 1 ? { s: 1, x: 0, y: 0 } : clampXY(ns, px - (px - o.x) * k, py - (py - o.y) * k);
+    });
+  }, [clampXY]);
+
+  const centre = () => { const r = box.current.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+  useEffect(() => {
+    if (!zoomRef) return;
+    zoomRef.current = {
+      zoomIn: () => zoomAt(z.s * 1.5, ...centre()),
+      zoomOut: () => zoomAt(z.s / 1.5, ...centre()),
+      reset: () => setZ({ s: 1, x: 0, y: 0 }),
+    };
+  });
+  useEffect(() => { onScale?.(z.s); }, [z.s, onScale]);
+
+  useEffect(() => {
+    const el = box.current;
+    const onWheel = (e) => { e.preventDefault(); zoomAt(z.s * Math.exp(-e.deltaY * 0.0018), e.clientX, e.clientY); };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [z.s, zoomAt]);
+
+  const onPointerDown = (e) => {
+    box.current.setPointerCapture(e.pointerId);
+    pointers.current.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      pinch.current = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), s: z.s };
+      drag.current = null;
+    } else if (z.s > 1) {
+      drag.current = { x: e.clientX, y: e.clientY, ox: z.x, oy: z.y };
+      setDragging(true);
+    }
+  };
+  const onPointerMove = (e) => {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pinch.current && pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      zoomAt(pinch.current.s * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch.current.d, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    } else if (drag.current) {
+      const d = drag.current;
+      setZ((o) => clampXY(o.s, d.ox + e.clientX - d.x, d.oy + e.clientY - d.y));
+    }
+  };
+  const onPointerUp = (e) => {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinch.current = null;
+    if (!pointers.current.size) { drag.current = null; setDragging(false); }
+  };
+
+  return (
+    <div ref={box} className={`zoom-box ${z.s > 1 ? "zoomed" : ""} ${dragging ? "dragging" : ""}`}
+      onDoubleClick={(e) => zoomAt(z.s > 1 ? 1 : 2.5, e.clientX, e.clientY)}
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+      <img src={src} alt={alt} draggable="false"
+        style={{ transform: `translate(${z.x}px, ${z.y}px) scale(${z.s})`, transition: dragging || pinch.current ? "none" : undefined }} />
+    </div>
+  );
+}
+
+function Lightbox({ items, index, dir, onClose, onMove }) {
   const it = items[index];
+  const zoom = useRef(null);
+  const [scale, setScale] = useState(1);
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowRight") onMove(1);
       if (e.key === "ArrowLeft") onMove(-1);
+      if (e.key === "+" || e.key === "=") zoom.current?.zoomIn();
+      if (e.key === "-") zoom.current?.zoomOut();
+      if (e.key === "0") zoom.current?.reset();
     };
     window.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
   }, [onClose, onMove]);
+  useEffect(() => { setScale(1); }, [index]);
   return createPortal(
     <div className="lb" role="dialog" aria-modal="true" aria-label={it.title} onClick={onClose}>
       <div className="lb-inner" onClick={(e) => e.stopPropagation()}>
-        <div className="lb-media">
-          {it.aladin ? <AllSkyModal /> : <img src={it.full || it.img} alt={it.alt} />}
+        {/* keyed by index so every change replays the slide animation in the right direction */}
+        <div key={index} className={`lb-media lb-slide-${dir > 0 ? "next" : "prev"}`}>
+          {it.aladin ? <AllSkyModal /> : <ZoomImage src={it.full || it.img} alt={it.alt} zoomRef={zoom} onScale={setScale} />}
         </div>
-        <div className="lb-cap">
+        <div key={`c${index}`} className="lb-cap lb-cap-anim">
           <div><span className="dtl">{it.cat} · {it.date}</span><h3>{it.title}</h3><p>{it.text}</p></div>
           <div className="cred"><span>Credit: {it.credit}</span><a href={it.link} target="_blank" rel="noreferrer" className="ext">{it.linkLabel} <IconExternal size={12} /></a></div>
         </div>
       </div>
+      {!it.aladin && (
+        <div className="lb-zoom" onClick={(e) => e.stopPropagation()} role="group" aria-label="Zoom">
+          <button onClick={() => zoom.current?.zoomOut()} aria-label="Zoom out (-)" disabled={scale <= 1.001}><IconZoomOut size={18} /></button>
+          <span className="mono">{Math.round(scale * 100)}%</span>
+          <button onClick={() => zoom.current?.zoomIn()} aria-label="Zoom in (+)" disabled={scale >= MAX_Z - 0.01}><IconZoomIn size={18} /></button>
+          <button onClick={() => zoom.current?.reset()} aria-label="Reset zoom (0)" disabled={scale <= 1.001}><IconReset size={16} /></button>
+        </div>
+      )}
       <button className="lb-btn lb-close" onClick={onClose} aria-label="Close (Esc)"><IconClose size={20} /></button>
       {items.length > 1 && <>
         <button className="lb-btn lb-prev" onClick={(e) => { e.stopPropagation(); onMove(-1); }} aria-label="Previous image"><IconChevronLeft size={24} /></button>
         <button className="lb-btn lb-next" onClick={(e) => { e.stopPropagation(); onMove(1); }} aria-label="Next image"><IconChevronRight size={24} /></button>
       </>}
-      <span className="lb-count mono">{index + 1} / {items.length}</span>
+      <span className="lb-count mono">{index + 1} / {items.length}{!it.aladin && <span className="lb-hint"> · scroll or double-click to zoom, drag to move</span>}</span>
     </div>,
     document.body,
   );
@@ -108,9 +211,10 @@ function Lightbox({ items, index, onClose, onMove }) {
 export default function GalleryPage() {
   const [cat, setCat] = useState("All");
   const [open, setOpen] = useState(null);
+  const [dir, setDir] = useState(1);
   const items = ITEMS.filter((i) => cat === "All" || i.cat === cat);
   const ref = useStagger([cat]);
-  const move = useCallback((d) => setOpen((o) => (o === null ? o : (o + d + items.length) % items.length)), [items.length]);
+  const move = useCallback((d) => { setDir(d); setOpen((o) => (o === null ? o : (o + d + items.length) % items.length)); }, [items.length]);
   const close = useCallback(() => setOpen(null), []);
   return (
     <main className="page">
@@ -132,7 +236,7 @@ export default function GalleryPage() {
       </section>
       <section className="pn" aria-label="Image credits"><p className="h">Using NASA images</p>
         <p className="note">Credit every image as NASA/JPL-Caltech and link the original page. Follow NASA's and JPL's image use policy, do not imply NASA endorsement, and do not alter images in ways that mislead. Colors in SPHEREx images are assigned to infrared wavelengths so people can see them.</p></section>
-      {open !== null && items[open] && <Lightbox items={items} index={open} onClose={close} onMove={move} />}
+      {open !== null && items[open] && <Lightbox items={items} index={open} dir={dir} onClose={close} onMove={move} />}
     </main>
   );
 }
