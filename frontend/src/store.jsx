@@ -184,9 +184,19 @@ export function AtlasProvider({ children }) {
     pool(urls, 4, (u) => new Promise((res) => {
       if (imgGen.current !== gen) return res();       // view changed: drop queued loads
       const im = new Image();
+      let attempt = 0;
       // finished loads are kept even after the view changes: the browser cache makes them reusable
       im.onload = () => { setImgState((o) => ({ ...o, [u]: "ok" })); res(); };
-      im.onerror = () => { setImgState((o) => ({ ...o, [u]: "err" })); res(); };
+      im.onerror = () => {
+        // IRSA sometimes refuses a cutout for a moment (our API answers 502): try again later
+        if (attempt < 2 && imgGen.current === gen) {
+          attempt += 1;
+          setTimeout(() => { im.src = ""; im.src = u; }, 5000 * attempt);
+          return;
+        }
+        setImgState((o) => ({ ...o, [u]: "err" }));
+        res();
+      };
       im.src = u;
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps

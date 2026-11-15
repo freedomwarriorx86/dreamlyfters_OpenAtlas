@@ -168,7 +168,8 @@ def frame_png(fid: str, ra: float = Query(...), dec: float = Query(...), fov: fl
     try:
         return _png(sx.render_frame(f, ra, dec, fov, stretch, flags, mask, size))
     except sx.ArchiveError as exc:
-        raise HTTPException(502, str(exc))
+        logger.warning("frame %s: %s", fid, exc)
+        raise HTTPException(502, f"{exc}. IRSA is busy; try again shortly.")
 
 
 @app.get("/api/frame/{fid}/values")
