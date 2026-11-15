@@ -5,6 +5,7 @@ import { fmtDMS, fmtHMS, fmtUTC, mjdToYear, parseDec, parseRA } from "../lib/ast
 import SkyView from "../components/SkyView";
 import Aladin, { nearestSlice } from "../components/Aladin";
 import { DetChips, LightCurve, Spectrum, SpectrumMini } from "../components/Charts";
+import Hint from "../components/Hint";
 
 const Icon = {
   prev: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z" /></svg>,
@@ -16,9 +17,9 @@ const Icon = {
 
 const FOV_STEPS = [0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10, 12, 15];
 
-function Switch({ label, on, onChange, extra }) {
+function Switch({ label, on, onChange, extra, hint }) {
   return (
-    <div className="sw"><span>{label}{extra ? <em>{extra}</em> : null}</span>
+    <div className="sw"><span>{label}{hint ? <> <Hint id={hint} /></> : null}{extra ? <em>{extra}</em> : null}</span>
       <button role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)} />
     </div>
   );
@@ -42,10 +43,10 @@ function Controls() {
 
   return (
     <aside className="pn" aria-label="Controls" data-tour="controls">
-      <p className="h">Target <span>ICRS</span></p>
-      <form style={{ display: "flex", flexDirection: "column", gap: 10 }} onSubmit={(e) => { e.preventDefault(); if (raOK && decOK) loadTarget({ name: "", ra, dec }); }}>
-        <label className="fld">Right ascension (RA)<input value={raT} onChange={(e) => setRaT(e.target.value)} aria-invalid={!raOK} spellCheck="false" /></label>
-        <label className="fld">Declination (Dec)<input value={decT} onChange={(e) => setDecT(e.target.value)} aria-invalid={!decOK} spellCheck="false" /></label>
+      <p className="h">Target <span>ICRS <Hint id="icrs" /></span></p>
+      <form data-tour="target" style={{ display: "flex", flexDirection: "column", gap: 10 }} onSubmit={(e) => { e.preventDefault(); if (raOK && decOK) loadTarget({ name: "", ra, dec }); }}>
+        <div className="fld"><span className="lbl"><label htmlFor="ra-in">Right ascension (RA)</label> <Hint id="ra" /></span><input id="ra-in" value={raT} onChange={(e) => setRaT(e.target.value)} aria-invalid={!raOK} spellCheck="false" /></div>
+        <div className="fld"><span className="lbl"><label htmlFor="dec-in">Declination (Dec)</label> <Hint id="dec" /></span><input id="dec-in" value={decT} onChange={(e) => setDecT(e.target.value)} aria-invalid={!decOK} spellCheck="false" /></div>
         <div className="seg" role="group" aria-label="Coordinate format">
           <button type="button" className={fmt === "deg" ? "on" : ""} onClick={() => setFmt("deg")}>Degrees</button>
           <button type="button" className={fmt === "hms" ? "on" : ""} onClick={() => setFmt("hms")}>HMS / DMS</button>
@@ -53,51 +54,133 @@ function Controls() {
         <button className="solid" style={{ width: "100%", height: 44 }} disabled={!raOK || !decOK}>Load sky patch</button>
       </form>
 
-      <p className="h">Field of view <span>{s.fov < 1 ? `${s.fov * 60}″` : `${s.fov}′`}</span></p>
-      <input className="range" type="range" min="0" max={FOV_STEPS.length - 1} step="1" value={fovIdx}
-        aria-label="Field of view" aria-valuetext={`${FOV_STEPS[fovIdx]} arcminutes`}
-        onChange={(e) => set({ fov: FOV_STEPS[+e.target.value] })} />
-
-      <p className="h">Mode</p>
-      <div className="seg" role="group" aria-label="Display mode">
-        {["blink", "stack", "diff"].map((m) => <button key={m} className={s.mode === m ? "on" : ""} aria-pressed={s.mode === m} onClick={() => set({ mode: m })}>{m[0].toUpperCase() + m.slice(1)}</button>)}
+      <div className="ctl" data-tour="fov">
+        <p className="h"><span className="hl">Field of view <Hint id="fov" /></span><span>{s.fov < 1 ? `${s.fov * 60}″` : `${s.fov}′`}</span></p>
+        <input className="range" type="range" min="0" max={FOV_STEPS.length - 1} step="1" value={fovIdx}
+          aria-label="Field of view" aria-valuetext={`${FOV_STEPS[fovIdx]} arcminutes`}
+          onChange={(e) => set({ fov: FOV_STEPS[+e.target.value] })} />
+        <div className="scale-lbl"><span>zoomed in</span><span>zoomed out</span></div>
       </div>
 
-      <p className="h">Detector <span>{meta.status === "ready" ? `${pool.length} exposures` : ""}</span></p>
-      <DetChips value={s.det} onChange={(d) => set({ det: d })} counts={counts} />
-
-      <p className="h">Frames to blink <span>{sel.length} of {pool.length}</span></p>
-      <div className="seg" role="group" aria-label="Number of frames">
-        {[12, 24, 48].map((n) => <button key={n} className={s.n === n ? "on" : ""} aria-pressed={s.n === n} onClick={() => set({ n })}>{n}</button>)}
+      <div className="ctl" data-tour="mode">
+        <p className="h"><span className="hl">Mode <Hint text="Blink = play the frames like a flip-book. Stack = average them for a deeper image. Diff = subtract them so only changes remain." /></span></p>
+        <ModeSeg />
       </div>
 
-      <p className="h">Stretch</p>
-      <div className="seg" role="group" aria-label="Stretch">
-        {["linear", "asinh", "log"].map((m) => <button key={m} className={s.stretch === m ? "on" : ""} aria-pressed={s.stretch === m} onClick={() => set({ stretch: m })}>{m[0].toUpperCase() + m.slice(1)}</button>)}
+      <div className="ctl" data-tour="detector">
+        <p className="h"><span className="hl">Detector <Hint id="detector" /></span><span>{meta.status === "ready" ? `${pool.length} exposures` : ""}</span></p>
+        <DetChips value={s.det} onChange={(d) => set({ det: d })} counts={counts} />
       </div>
 
-      <p className="h">Overlays</p>
-      <Switch label="Gaia sources" on={s.gaia} onChange={(v) => set({ gaia: v })} />
-      <Switch label="WISE sources" on={s.wise} onChange={(v) => set({ wise: v })} />
-      <Switch label="Contamination flags" on={s.showFlags} onChange={(v) => set({ showFlags: v })} />
-      <Switch label="Grid and compass" on={s.grid} onChange={(v) => set({ grid: v })} />
+      <div className="ctl" data-tour="nframes">
+        <p className="h"><span className="hl">Frames to blink <Hint text="How many exposures to play, picked evenly over time. More frames = smoother, but the first download from NASA takes longer." /></span><span>{sel.length} of {pool.length}</span></p>
+        <div className="seg" role="group" aria-label="Number of frames">
+          {[12, 24, 48].map((n) => <button key={n} className={s.n === n ? "on" : ""} aria-pressed={s.n === n} onClick={() => set({ n })}>{n}</button>)}
+        </div>
+      </div>
+
+      <div className="ctl" data-tour="stretch">
+        <p className="h"><span className="hl">Stretch <Hint id="stretch" /></span></p>
+        <StretchSeg />
+      </div>
+
+      <div className="ctl" data-tour="overlays">
+        <p className="h"><span className="hl">Overlays <Hint id="overlay" /></span></p>
+        <Overlays />
+      </div>
 
       <p className="h">Test objects</p>
+      <div className="ctl" data-tour="tests">
       {TEST_OBJECTS.map((o) => (
         <button key={o.key} className={`pre ${activeObj?.key === o.key ? "on" : ""}`} onClick={() => openObject(o)}>
           <span className="ic" style={{ background: o.color + "26", color: o.color }}>{o.icon}</span>
           <div><b>{o.name}</b><span>{o.type}</span></div>
         </button>
       ))}
+      </div>
     </aside>
   );
 }
 
+// Control groups shared by the side panel and the fullscreen panel
+function ModeSeg() {
+  const { s, set } = useAtlas();
+  return (
+    <div className="seg" role="group" aria-label="Display mode">
+      {[["blink", "Blink"], ["stack", "Stack"], ["diff", "Diff"]].map(([m, l]) => (
+        <button key={m} className={s.mode === m ? "on" : ""} aria-pressed={s.mode === m} onClick={() => set({ mode: m })}>{l}</button>
+      ))}
+    </div>
+  );
+}
+
+function StretchSeg() {
+  const { s, set } = useAtlas();
+  return (
+    <div className="seg" role="group" aria-label="Stretch">
+      {["linear", "asinh", "log"].map((m) => <button key={m} className={s.stretch === m ? "on" : ""} aria-pressed={s.stretch === m} onClick={() => set({ stretch: m })}>{m[0].toUpperCase() + m.slice(1)}</button>)}
+    </div>
+  );
+}
+
+function Overlays() {
+  const { s, set } = useAtlas();
+  return (
+    <>
+      <Switch label="Gaia sources" on={s.gaia} onChange={(v) => set({ gaia: v })} />
+      <Switch label="WISE sources" on={s.wise} onChange={(v) => set({ wise: v })} />
+      <Switch label="Contamination flags" hint="flags" on={s.showFlags} onChange={(v) => set({ showFlags: v })} />
+      <Switch label="Grid and compass" on={s.grid} onChange={(v) => set({ grid: v })} />
+    </>
+  );
+}
+
+// Slide-out control panel shown in fullscreen: opens when the cursor reaches the
+// right edge or the tab is clicked; the pin keeps it open.
+function FsPanel({ onExit }) {
+  const { s, set, frames, cur, idx, sel } = useAtlas();
+  const [pinned, setPinned] = useState(() => { try { return localStorage.getItem("oa.fsPinned") === "1"; } catch { return false; } });
+  const [hover, setHover] = useState(false);
+  const open = pinned || hover;
+  const counts = useMemo(() => frames.reduce((a, f) => ((a[f.detector] = (a[f.detector] || 0) + 1), a), {}), [frames]);
+  const pin = () => {
+    setPinned((p) => { try { localStorage.setItem("oa.fsPinned", p ? "0" : "1"); } catch { /* ignore */ } return !p; });
+  };
+  const fovIdx = FOV_STEPS.reduce((b, v, i) => (Math.abs(v - s.fov) < Math.abs(FOV_STEPS[b] - s.fov) ? i : b), 0);
+  return (
+    <>
+      <div className="fs-hot" onMouseEnter={() => setHover(true)} aria-hidden="true" />
+      <button className={`fs-tab ${open ? "open" : ""}`} onMouseEnter={() => setHover(true)} onClick={() => (pinned ? pin() : setHover(!hover))} aria-expanded={open} aria-controls="fs-panel">
+        {open ? "›" : "‹"} Controls
+      </button>
+      <aside id="fs-panel" className={`fs-panel ${open ? "open" : ""}`} onMouseLeave={() => setHover(false)} aria-label="Fullscreen controls">
+        <div className="fs-head">
+          <b>{s.name || "Custom position"}</b>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button className={`btn ${pinned ? "on" : ""}`} style={{ width: 36, height: 36 }} onClick={pin} aria-pressed={pinned}
+              title={pinned ? "Unpin: hide when the cursor leaves" : "Pin: keep this panel open"} aria-label="Pin panel">📌</button>
+            <button className="btn" style={{ width: 36, height: 36 }} onClick={onExit} title="Exit fullscreen (Esc)" aria-label="Exit fullscreen">✕</button>
+          </div>
+        </div>
+        {cur && <p className="note mono" style={{ fontSize: 11 }}>Frame {idx + 1}/{sel.length} · {fmtUTC(cur.utc)} · D{cur.detector}</p>}
+        <PlayBar compact />
+        <p className="h">Mode</p><ModeSeg />
+        <p className="h">Detector</p><DetChips value={s.det} onChange={(d) => set({ det: d })} counts={counts} />
+        <p className="h">Stretch</p><StretchSeg />
+        <p className="h">Field of view <span>{s.fov}′</span></p>
+        <input className="range" type="range" min="0" max={FOV_STEPS.length - 1} value={fovIdx} aria-label="Field of view" onChange={(e) => set({ fov: FOV_STEPS[+e.target.value] })} />
+        <p className="h">Overlays</p><Overlays />
+        <p className="note" style={{ fontSize: 11 }}>Move the cursor to the right edge to open this panel, 📌 to keep it open, Esc to leave fullscreen.</p>
+      </aside>
+    </>
+  );
+}
+
 // ---------------------------------------------------------------------------
-function PlayBar() {
+function PlayBar({ compact = false }) {
   const { s, set, sel, idx, setIdx, step, playing, setPlaying } = useAtlas();
   return (
-    <div className="bar" data-tour="playbar">
+    <div className={`bar ${compact ? "compact" : ""}`} data-tour={compact ? undefined : "playbar"}>
       <button className="btn" aria-label="Previous frame" onClick={() => { setPlaying(false); step(-1); }} disabled={sel.length < 2}>{Icon.prev}</button>
       <button className="btn pl" aria-label={playing ? "Pause" : "Play"} onClick={() => setPlaying(!playing)} disabled={sel.length < 2 || s.mode === "stack"}>{playing ? Icon.pause : Icon.play}</button>
       <button className="btn" aria-label="Next frame" onClick={() => { setPlaying(false); step(1); }} disabled={sel.length < 2}>{Icon.next}</button>
@@ -222,7 +305,8 @@ function Details({ cursor }) {
   const { s, cur, phot, cands, candSel, setCandSel, runCandidates, addFlag, flagged, specFrames, sel, notify } = useAtlas();
   const p = cur ? phot[cur.id] : null;
   const list = cands.status === "ready" ? cands.data.candidates : [];
-  const specPts = Object.values(phot).filter((x) => x.flux_ujy != null);
+  const measured = Object.values(phot).filter((x) => x.flux_ujy != null);
+  const specPts = measured.filter((x) => !x.saturated);
   const embed = shareQuery(s);
   const flag = () => {
     const c = list[candSel];
@@ -241,12 +325,13 @@ function Details({ cursor }) {
   };
   return (
     <aside className="pn" aria-label="Details" data-tour="details">
-      <p className="h">Frame details</p>
+      <p className="h" data-tour="frame-details"><span className="hl">Frame details <Hint id="exposure" /></span></p>
       <div>
         <div className="kv"><span>Observed</span><b>{cur ? `${fmtUTC(cur.utc)} · MJD ${cur.mjd.toFixed(3)}` : "—"}</b></div>
         <div className="kv"><span>Detector</span><b>{cur ? `D${cur.detector}` : "—"}</b></div>
         <div className="kv"><span>Wavelength</span><b>{p?.wavelength_um ? `${p.wavelength_um.toFixed(3)} µm${p.bandwidth_um ? ` (Δ${p.bandwidth_um.toFixed(3)})` : ""}` : cur ? `${cur.wav_min_um.toFixed(2)}–${cur.wav_max_um.toFixed(2)} µm` : "—"}</b></div>
-        <div className="kv"><span>Target flux</span><b>{p?.flux_ujy != null ? `${p.flux_ujy.toFixed(1)} ± ${p.err_ujy.toFixed(1)} µJy` : p ? "not measured" : "—"}</b></div>
+        <div className="kv"><span>Target flux</span><b title={p?.note || ""}>{p?.flux_ujy != null ? `${p.saturated ? "≈ " : ""}${p.flux_ujy.toFixed(1)} ± ${p.err_ujy.toFixed(1)} µJy` : p ? (p.saturated ? "saturated" : "not measured") : "—"}</b></div>
+        {p?.saturated && <p className="note" style={{ color: "#FFD9A8" }}>Saturated: the star is too bright for SPHEREx, so this is an estimate from its outer glow (good for spotting changes, not exact). <Hint id="saturation" /></p>}
         <div className="kv"><span>Quality flags</span><b>{p ? (p.flags?.length ? p.flags.join(", ") : "none") : "—"}</b></div>
         <div className="kv"><span>Exposure</span><b className="mono" style={{ fontSize: 11 }}>{cur ? cur.obs_id : "—"}</b></div>
       </div>
@@ -257,8 +342,10 @@ function Details({ cursor }) {
         <div className="kv"><span>Flux</span><b>{cursor?.flux != null && isFinite(cursor.flux) ? `${cursor.flux.toPrecision(3)} ${cursor.unit}` : "—"}</b></div>
       </div>
       <p className="h">Spectrum <span>flux vs µm</span></p>
-      {specPts.length >= 2 ? <SpectrumMini points={specPts} /> : <p className="note">Open the Spectrum tab to measure {specFrames.length} exposures across all six detectors.</p>}
-      <p className="h">Candidates <span>{cands.status === "ready" ? `${list.length} found` : ""}</span></p>
+      {specPts.length >= 2 ? <SpectrumMini points={specPts} />
+        : measured.length >= 2 ? <p className="note">This star is saturated, so SPHEREx cannot give it a reliable spectrum. <Hint id="saturation" /></p>
+        : <p className="note">Open the Spectrum tab to measure {specFrames.length} exposures across all six detectors.</p>}
+      <p className="h" data-tour="candidates"><span className="hl">Candidates <Hint id="mover" /></span><span>{cands.status === "ready" ? `${list.length} found` : ""}</span></p>
       {cands.status === "loading" && <div className="note"><span className="dot busy" style={{ marginRight: 8 }} />Comparing early and late frames…</div>}
       {cands.status === "error" && <div className="alert err">{cands.error}</div>}
       {cands.status === "idle" && <button className="ghost" onClick={runCandidates} disabled={sel.length < 4}>Find movers now</button>}
@@ -305,6 +392,12 @@ export default function ViewerPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [s, set, step, setPlaying, addFlag, cands, candSel, cur, notify]);
 
+  const [isFs, setIsFs] = useState(false);
+  useEffect(() => {
+    const onFs = () => setIsFs(document.fullscreenElement === fsRef.current && !!fsRef.current);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
   const fullscreen = () => {
     const el = fsRef.current;
     if (!el) return;
@@ -316,13 +409,13 @@ export default function ViewerPage() {
     <main className="main">
       <Controls />
       <section className="pn" aria-label="Sky viewer">
-        <div className="tabs" role="tablist">
+        <div className="tabs" role="tablist" data-tour="tabs">
           {[["viewer", "Viewer"], ["lightcurve", "Light curve"], ["spectrum", "Spectrum"], ["compare", "Compare"]].map(([k, l]) => (
             <button key={k} className={`tab ${tab === k ? "on" : ""}`} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>
           ))}
         </div>
         <div className="titlebar">
-          <div className="nm">{s.name || "Custom position"}<span className="mono">{fmtHMS(s.ra, 1)} {fmtDMS(s.dec, 1)}</span></div>
+          <h1 className="nm">{s.name || "Custom position"}<span className="mono">{fmtHMS(s.ra, 1)} {fmtDMS(s.dec, 1)}</span></h1>
           <div style={{ display: "flex", gap: 8 }}>
             <a className="ghost" href={sel.length ? gifURL(s, sel.map((f) => f.id), s.speed) : undefined} aria-disabled={!sel.length} download onClick={() => sel.length && notify("Rendering GIF… the download starts when it is ready")}>Export GIF</a>
             <button className="ghost" onClick={fullscreen}>Fullscreen</button>
@@ -331,10 +424,15 @@ export default function ViewerPage() {
         {meta.demo && <div className="alert warn">IRSA could not be reached, so these are <b>synthetic demo frames</b>, not real SPHEREx data. {meta.error}</div>}
         {meta.source === "cache" && <div className="alert warn">IRSA is not answering right now; showing the last cached frame list.</div>}
         {tab === "viewer" && <>
-          <SkyView onCursor={setCursor} fsRef={fsRef} />
+          <div className={`stage ${isFs ? "fs" : ""}`} ref={fsRef}>
+            <SkyView onCursor={setCursor} />
+            {isFs && <FsPanel onExit={() => document.exitFullscreen()} />}
+          </div>
           <PlayBar />
-          <Filmstrip />
-          <Coverage />
+          <div data-tour="film" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Filmstrip />
+            <Coverage />
+          </div>
           <div className="keys"><span><kbd>Space</kbd> play</span><span><kbd>←</kbd><kbd>→</kbd> step</span><span><kbd>D</kbd> difference</span><span><kbd>F</kbd> flag</span><span><kbd>/</kbd> search</span></div>
         </>}
         {tab === "lightcurve" && <LightCurveTab />}

@@ -639,6 +639,27 @@ def flag_names(bits: int) -> list[str]:
     return [name for b, name in FLAG_BITS.items() if (REPORT_BITS >> b) & 1 and bits & (1 << b)]
 
 
+WING_IN_PX, WING_OUT_PX = 2.5, 4.5
+
+
+def _aperture_flux(img, var, fl, r, good, region, bkg_in, bkg_out) -> dict:
+    """Background-subtracted sum over `good` pixels of `region`, scaled for missing pixels (uJy)."""
+    ann = (r >= bkg_in) & (r <= bkg_out) & np.isfinite(img) & ((fl & MASK_BITS) == 0)
+    if good.sum() < 3 or ann.sum() < 8:
+        return {"flux_ujy": None, "err_ujy": None, "snr": None, "note": "not enough valid pixels"}
+    bkg = float(np.median(img[ann]))
+    bkg_sig = float(np.std(img[ann]))
+    n = float(region.sum())
+    flux = float(np.sum(img[good] - bkg)) * n / float(good.sum())
+    v = var[good]
+    v = v[np.isfinite(v)]
+    var_sum = float(np.sum(v)) * n / max(1.0, float(v.size)) if v.size else 0.0
+    err = float(np.sqrt(max(var_sum, 0.0) + (n * bkg_sig) ** 2 / ann.sum()))
+    k = OMEGA_PIX_SR * 1e12  # MJy/sr * sr -> uJy
+    return {"flux_ujy": round(flux * k, 3), "err_ujy": round(err * k, 3),
+            "snr": round(flux / err, 2) if err > 0 else None, "background_mjysr": round(bkg, 5)}
+
+
 def photometry(frame: dict, ra: float, dec: float) -> dict:
     base = {"id": frame["id"], "mjd": frame["mjd"], "utc": frame["utc"], "detector": frame["detector"],
             "wav_min_um": frame["wav_min_um"], "wav_max_um": frame["wav_max_um"],
@@ -647,7 +668,7 @@ def photometry(frame: dict, ra: float, dec: float) -> dict:
         return {**base, **_synthetic_phot(frame, ra, dec)}
 
     name = _cut_name(frame, ra, dec)
-    pfile = CACHE_DIR / "phot" / f"{name}_v2.json"
+    pfile = CACHE_DIR / "phot" / f"{name}_v3.json"
     if pfile.exists():
         try:
             return {**base, **json.loads(pfile.read_text())}
@@ -669,25 +690,27 @@ def photometry(frame: dict, ra: float, dec: float) -> dict:
     else:
         yy, xx = np.indices(img.shape)
         r = np.hypot(xx - x, yy - y)
+        valid = np.isfinite(img) & ((fl & PHOT_MASK) == 0)
         ap = r <= AP_RADIUS_PX
-        ann = (r >= ANN_IN_PX) & (r <= ANN_OUT_PX) & np.isfinite(img) & ((fl & MASK_BITS) == 0)
-        good = ap & np.isfinite(img) & ((fl & PHOT_MASK) == 0)
-        if good.sum() < 0.5 * ap.sum() or good.sum() < 3 or ann.sum() < 8:
-            res.update(flux_ujy=None, err_ujy=None, snr=None, flags=[], note="not enough valid pixels")
+        good = ap & valid
+        bits = int(np.bitwise_or.reduce(fl[r <= WING_OUT_PX].ravel())) & REPORT_BITS
+        saturated = good.sum() < 0.5 * ap.sum() or bool(bits & (1 << 1))  # NaN/flagged core or OVERFLOW
+        if not saturated and good.sum() >= 3:
+            res.update(_aperture_flux(img, var, fl, r, good, ap, ANN_IN_PX, ANN_OUT_PX))
+            res["method"] = "aperture"
         else:
-            bkg = float(np.median(img[ann]))
-            bkg_sig = float(np.std(img[ann]))
-            n_ap = float(ap.sum())
-            flux = float(np.sum(img[good] - bkg)) * n_ap / float(good.sum())
-            v = var[good]
-            v = v[np.isfinite(v)]
-            var_sum = float(np.sum(v)) * n_ap / max(1.0, float(v.size)) if v.size else 0.0
-            err = float(np.sqrt(max(var_sum, 0.0) + (n_ap * bkg_sig) ** 2 / ann.sum()))
-            k = OMEGA_PIX_SR * 1e12  # MJy/sr * sr -> uJy
-            bits = int(np.bitwise_or.reduce(fl[ap].ravel())) & REPORT_BITS
-            res.update(flux_ujy=round(flux * k, 3), err_ujy=round(err * k, 3),
-                       snr=round(flux / err, 2) if err > 0 else None, flags=flag_names(bits),
-                       background_mjysr=round(bkg, 5))
+            # Bright star with a saturated core: measure the unsaturated PSF wings. Not an
+            # absolute flux, but proportional to it within one detector, so it still tracks
+            # variability (relative light curve). Background is taken further out.
+            wing = (r >= WING_IN_PX) & (r <= WING_OUT_PX)
+            res.update(_aperture_flux(img, var, fl, r, wing & valid, wing, WING_OUT_PX + 2, WING_OUT_PX + 6))
+            res["method"] = "wing"
+            res["saturated"] = True
+            if res["flux_ujy"] is None:
+                res["note"] = "saturated: no usable pixels around the core"
+            else:
+                res["note"] = "saturated core: wing photometry (relative brightness only)"
+        res["flags"] = flag_names(bits)
     try:
         _atomic_write(pfile, json.dumps(res).encode())
     except OSError:

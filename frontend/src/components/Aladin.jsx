@@ -55,6 +55,10 @@ export default function Aladin({ ra, dec, fovDeg, survey = "dss", slice = null, 
         showCooGrid: false,
       });
       st.current = { A, al, layer: null, cats: {}, gfx: null };
+      // Aladin adds decorative <img>s (logo, icons) without alt text: mark them decorative
+      const fixAlt = () => host.current?.querySelectorAll("img:not([alt])").forEach((im) => im.setAttribute("alt", ""));
+      fixAlt();
+      new MutationObserver(fixAlt).observe(host.current, { childList: true, subtree: true });
       setReady(true);
     }).catch((e) => setErr(e?.message || String(e)));
     return () => { dead = true; };

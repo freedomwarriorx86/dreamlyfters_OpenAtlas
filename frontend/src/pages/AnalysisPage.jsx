@@ -4,13 +4,14 @@ import { copyText, diffURL, download, gifURL, stackURL, toCSV } from "../lib/api
 import { fmtUTC } from "../lib/astro";
 import { DetChips, LightCurve, Spectrum } from "../components/Charts";
 import { useImageStatus } from "../components/SkyView";
+import Hint from "../components/Hint";
 
 function Tile({ label, src }) {
   const st = useImageStatus(src);
   return (
     <div className="tile">{label}
       <div className="im">
-        {src && st === "ok" && <img src={src} alt={label} />}
+        {src && st === "ok" && <img src={src} alt={label} loading="lazy" />}
         {(!src || st !== "ok") && <div className="veil">{!src ? "—" : st === "err" ? "could not render" : <div><div className="spin" style={{ width: 22, height: 22 }} />rendering…</div>}</div>}
       </div>
     </div>
@@ -48,8 +49,8 @@ function DiffPanel() {
   const tD = ids.length >= 2 ? diffURL(s, ids, op, op === "range" ? undefined : a, op === "pair" ? b : undefined) : null;
   const sameDet = op !== "pair" || (fa && fb && fa.detector === fb.detector);
   return (
-    <section className="pn" aria-label="Difference imaging">
-      <p className="h">Difference imaging <span>{op === "range" ? "late − early" : "A − B"}</span></p>
+    <section className="pn" aria-label="Difference imaging" data-tour="an-diff">
+      <p className="h"><span className="hl">Difference imaging <Hint id="diff" /></span><span>{op === "range" ? "late − early" : "A − B"}</span></p>
       {loaded.length < 2 ? <div className="alert">Open the Viewer first so the frames can load ({loaded.length}/{sel.length} ready).</div> : <>
         <div className="tiles"><Tile label={lA} src={tA} /><Tile label={lB} src={tB} /><Tile label={op === "range" ? "Late − early" : "A − B"} src={tD} /></div>
         <div className="cb" role="img" aria-label="Diverging color scale from negative violet to positive orange" />
@@ -73,8 +74,8 @@ function CandidatesPanel() {
   const list = cands.status === "ready" ? cands.data.candidates : [];
   const tag = (st) => (st === "known mover" ? "tag g" : st === "variable" ? "tag v" : "tag");
   return (
-    <section className="pn" aria-label="Candidates">
-      <p className="h">Candidates <span>{cands.status === "ready" ? `${list.length} found` : cands.status === "loading" ? "searching…" : ""}</span></p>
+    <section className="pn" aria-label="Candidates" data-tour="an-candidates">
+      <p className="h"><span className="hl">Candidates <Hint id="mover" /></span><span>{cands.status === "ready" ? `${list.length} found` : cands.status === "loading" ? "searching…" : ""}</span></p>
       <div className="tb hd"><span>#</span><span>RA</span><span>Dec</span><span>S/N</span><span>Motion</span><span>Status</span></div>
       {list.map((c, i) => (
         <button key={i} className="tb" onClick={() => { setCandSel(i); go("/"); }} style={i === candSel ? { background: "rgba(255,184,107,.06)" } : undefined}>
@@ -151,7 +152,7 @@ function ExportPanel() {
   const link = window.location.origin + "/" + shareQuery(s, true);
   const embed = `<iframe src="${link}" width="1280" height="900" style="border:0" title="OpenAtlas: ${s.name || "SPHEREx sky patch"}"></iframe>`;
   return (
-    <section className="pn" aria-label="Export">
+    <section className="pn" aria-label="Export" data-tour="an-export">
       <p className="h">Export &amp; share</p>
       <div className="ex">
         <a className="ghost" href={loaded.length ? gifURL(s, loaded.map((f) => f.id), s.speed) : undefined} download onClick={() => loaded.length ? notify("Rendering GIF…") : notify("Load frames first")}>GIF</a>
@@ -175,10 +176,11 @@ export default function AnalysisPage() {
   const lcDone = lcPts.length, specDone = specFrames.filter((f) => phot[f.id]).length;
   return (
     <main className="wrap">
+      <h1 className="sr">Analysis{s.name ? ` of ${s.name}` : ""}</h1>
       <div className="col">
-        <section className="pn" aria-label="Light curve">
+        <section className="pn" aria-label="Light curve" data-tour="an-lightcurve">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <div><p className="h">Light curve <span>{photBusy.lc ? `measuring ${lcDone}/${sel.length}` : `${lcPts.filter((p) => p.flux_ujy != null).length} points`}</span></p>
+            <div><p className="h"><span className="hl">Light curve <Hint id="lightcurve" /></span><span>{photBusy.lc ? `measuring ${lcDone}/${sel.length}` : `${lcPts.filter((p) => p.flux_ujy != null).length} points`}</span></p>
               <p className="t">{s.name || "Custom position"} {obj && <span className="note mono">· {obj.type.toLowerCase()}</span>}</p></div>
             <DetChips value={det} onChange={setDet} />
           </div>
@@ -186,9 +188,9 @@ export default function AnalysisPage() {
             : <div className="alert">{photBusy.lc || !frames.length ? "Measuring aperture photometry on each frame (the first run downloads the cutouts from IRSA)…" : "No photometry yet."}</div>}
           <p className="note">Aperture photometry (12″ radius, local background) at the target on each exposure, grouped by detector because brightness depends on wavelength; each detector is normalised to its median.</p>
         </section>
-        <section className="pn" aria-label="Spectrum">
+        <section className="pn" aria-label="Spectrum" data-tour="an-spectrum">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <div><p className="h">Spectrum <span>102 bands · 0.75 to 5.0 µm</span></p><p className="t">Spectrum across six detector arrays</p></div>
+            <div><p className="h"><span className="hl">Spectrum <Hint id="spectrum" /></span><span>102 bands · 0.75 to 5.0 µm</span></p><p className="t">Spectrum across six detector arrays</p></div>
             <div className="chips"><button className={`chip ${!norm ? "on" : ""}`} onClick={() => setNorm(false)}>Flux</button><button className={`chip ${norm ? "on" : ""}`} onClick={() => setNorm(true)}>Normalized</button></div>
           </div>
           {specPts.some((p) => p.flux_ujy != null) ? <Spectrum points={specPts} normalized={norm} />

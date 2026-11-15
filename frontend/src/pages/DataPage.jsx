@@ -3,6 +3,7 @@ import { TEST_OBJECTS, useAtlas } from "../store";
 import { api } from "../lib/api";
 import { unproject } from "../lib/astro";
 import Aladin, { BLANK_SLICES, SPHEREX_SLICES } from "../components/Aladin";
+import Hint from "../components/Hint";
 
 function SkyContext() {
   const { s, frames, sel } = useAtlas();
@@ -27,7 +28,7 @@ function SkyContext() {
     : [{ name: "Gaia DR3", color: "#A78BFA", sources: [] }]), [layer, gaiaWide]);
   const survey = layer === "spherex" ? "spherex" : layer === "wise" ? "allwise" : "dss";
   return (
-    <section className="pn" aria-label="Sky context">
+    <section className="pn" aria-label="Sky context" data-tour="da-sky">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <div><p className="h">Sky context</p><p className="t">Where your patch sits on the sky</p></div>
         <div className="chips">
@@ -50,7 +51,7 @@ function SkyContext() {
 function TestObjects() {
   const { openObject, go } = useAtlas();
   return (
-    <section className="pn" aria-label="Test objects">
+    <section className="pn" aria-label="Test objects" data-tour="da-tests">
       <p className="h">Test objects <span>{TEST_OBJECTS.length} targets</span></p>
       <div className="ob hd"><span>Object</span><span>Type</span><span>What to look for</span><span /></div>
       {TEST_OBJECTS.map((o) => (
@@ -67,8 +68,8 @@ function Releases() {
   const [rel, setRel] = useState(null);
   useEffect(() => { api.releases().then((r) => setRel(r.releases)).catch(() => setRel([])); }, []);
   return (
-    <section className="pn" aria-label="Data releases">
-      <p className="h">Data release <span>auto-updates</span></p>
+    <section className="pn" aria-label="Data releases" data-tour="da-releases">
+      <p className="h"><span className="hl">Data release <Hint id="release" /></span><span>auto-updates</span></p>
       {(rel || []).map((r) => (
         <button key={r.id} className={`rel ${s.collection === r.id ? "on" : ""}`} aria-pressed={s.collection === r.id} onClick={() => set({ collection: r.id })}>
           <i className="rd" /><div><b>{r.label}</b><span>{r.description}</span></div>
@@ -88,8 +89,8 @@ function QualityFlags() {
   const [fl, setFl] = useState(null);
   useEffect(() => { api.flags().then(setFl).catch(() => setFl({ classes: [] })); }, []);
   return (
-    <section className="pn" aria-label="Quality flags">
-      <p className="h">Quality flags <span>per pixel</span></p>
+    <section className="pn" aria-label="Quality flags" data-tour="da-flags">
+      <p className="h"><span className="hl">Quality flags <Hint id="flags" /></span><span>per pixel</span></p>
       {(fl?.classes || []).map((c) => (
         <div className="swatch" key={c.key}><i style={{ background: c.color }} />
           <div>{c.label}<small>{c.detail} · {c.bits.map((b) => fl.bits[b]).join(", ")}</small></div></div>
@@ -106,6 +107,7 @@ function QualityFlags() {
 export default function DataPage() {
   return (
     <main className="wrap">
+      <h1 className="sr">Data, test objects and quality flags</h1>
       <div className="col">
         <SkyContext />
         <TestObjects />
